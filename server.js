@@ -15,7 +15,23 @@ console.log('Iniciando servidor...');
 // Configurar Supabase
 const supabaseUrl = process.env.SUPABASE_URL || 'https://db.yuwddqxdnyjvilbmjooc.supabase.co';
 const supabaseKey = process.env.SUPABASE_PASSWORD || 'tiVW2cmpeVStByLm';
-const supabase = createClient(supabaseUrl, supabaseKey);
+
+// Forçar IPv4 para evitar ENETUNREACH
+const supabase = createClient(supabaseUrl, supabaseKey, {
+    db: {
+        schema: 'public'
+    },
+    auth: {
+        persistSession: false,
+        autoRefreshToken: false
+    },
+    global: {
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        }
+    }
+});
 
 // Verificar se está usando Supabase
 const databaseUrl = process.env.DATABASE_URL;
@@ -242,29 +258,68 @@ app.post('/api/funcionarios', async (req, res) => {
         if (useSupabase) {
             // Usar Supabase
             console.log('Inserindo funcionário no Supabase...');
-            const { data, error } = await supabase
-                .from('funcionarios')
-                .insert([{
+            try {
+                const { data, error } = await supabase
+                    .from('funcionarios')
+                    .insert([{
+                        nome, 
+                        tipo, 
+                        comissao_maquina_grande: Number(comissao_maquina_grande) || 450, 
+                        comissao_maquina_pequena: Number(comissao_maquina_pequena) || 250, 
+                        comissao_extra_desconto: Number(comissao_extra_desconto) || 100,
+                        salario_base: Number(salario_base) || 0, 
+                        comissao_maquina_producao: Number(comissao_maquina_producao) || 100,
+                        meta_maquinas: Number(meta_maquinas) || 10,
+                        bonus_meta: Number(bonus_meta) || 1000,
+                        ativo: true
+                    }])
+                    .select();
+                
+                if (error) {
+                    console.log('Erro ao inserir no Supabase:', error);
+                    throw error;
+                }
+                
+                console.log('Funcionário inserido no Supabase:', data[0]);
+                res.json(data[0]);
+            } catch (supabaseError) {
+                console.log('Supabase falhou, usando SQLite fallback:', supabaseError.message);
+                
+                // Fallback para SQLite
+                const sql = 'INSERT INTO funcionarios (nome, tipo, comissao_maquina_grande, comissao_maquina_pequena, comissao_extra_desconto, salario_base, comissao_maquina_producao, meta_maquinas, bonus_meta) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)';
+                const params = [
                     nome, 
                     tipo, 
-                    comissao_maquina_grande: Number(comissao_maquina_grande) || 450, 
-                    comissao_maquina_pequena: Number(comissao_maquina_pequena) || 250, 
-                    comissao_extra_desconto: Number(comissao_extra_desconto) || 100,
-                    salario_base: Number(salario_base) || 0, 
-                    comissao_maquina_producao: Number(comissao_maquina_producao) || 100,
-                    meta_maquinas: Number(meta_maquinas) || 10,
-                    bonus_meta: Number(bonus_meta) || 1000,
-                    ativo: true
-                }])
-                .select();
-            
-            if (error) {
-                console.log('Erro ao inserir no Supabase:', error);
-                return res.status(500).json({ error: error.message });
+                    Number(comissao_maquina_grande) || 450, 
+                    Number(comissao_maquina_pequena) || 250, 
+                    Number(comissao_extra_desconto) || 100,
+                    Number(salario_base) || 0, 
+                    Number(comissao_maquina_producao) || 100,
+                    Number(meta_maquinas) || 10,
+                    Number(bonus_meta) || 1000
+                ];
+                
+                db.run(sql, params, function(err) {
+                    if (err) {
+                        console.error('Erro no SQLite fallback:', err);
+                        return res.status(500).json({ error: err.message });
+                    }
+                    console.log('Funcionário inserido no SQLite fallback com ID:', this.lastID);
+                    res.json({ 
+                        id: this.lastID, 
+                        nome, 
+                        tipo, 
+                        comissao_maquina_grande: Number(comissao_maquina_grande) || 450, 
+                        comissao_maquina_pequena: Number(comissao_maquina_pequena) || 250, 
+                        comissao_extra_desconto: Number(comissao_extra_desconto) || 100,
+                        salario_base: Number(salario_base) || 0, 
+                        comissao_maquina_producao: Number(comissao_maquina_producao) || 100,
+                        meta_maquinas: Number(meta_maquinas) || 10,
+                        bonus_meta: Number(bonus_meta) || 1000,
+                        ativo: true
+                    });
+                });
             }
-            
-            console.log('Funcionário inserido no Supabase:', data[0]);
-            res.json(data[0]);
         } else {
             // Usar SQLite local
             const sql = 'INSERT INTO funcionarios (nome, tipo, comissao_maquina_grande, comissao_maquina_pequena, comissao_extra_desconto, salario_base, comissao_maquina_producao, meta_maquinas, bonus_meta) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)';
