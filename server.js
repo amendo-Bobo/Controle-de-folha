@@ -207,18 +207,32 @@ app.get('/api/funcionarios', async (req, res) => {
     if (useSupabase) {
         // Usar Supabase
         console.log('Buscando funcionários no Supabase...');
-        const { data, error } = await supabase
-            .from('funcionarios')
-            .select('*')
-            .eq('ativo', true);
-        
-        if (error) {
-            console.log('Erro ao buscar no Supabase:', error);
-            return res.status(500).json({ error: error.message });
+        try {
+            const { data, error } = await supabase
+                .from('funcionarios')
+                .select('*')
+                .eq('ativo', true);
+            
+            if (error) {
+                console.log('Erro ao buscar no Supabase:', error);
+                throw error;
+            }
+            
+            console.log('Funcionários encontrados no Supabase:', data.length);
+            res.json(data);
+        } catch (supabaseError) {
+            console.log('Supabase falhou, usando SQLite fallback:', supabaseError.message);
+            
+            // Fallback para SQLite
+            db.all('SELECT * FROM funcionarios WHERE ativo = 1', (err, rows) => {
+                if (err) {
+                    res.status(500).json({ error: err.message });
+                    return;
+                }
+                console.log('Funcionários encontrados no SQLite fallback:', rows.length);
+                res.json(rows);
+            });
         }
-        
-        console.log('Funcionários encontrados no Supabase:', data.length);
-        res.json(data);
     } else {
         // Usar SQLite local
         db.all('SELECT * FROM funcionarios WHERE ativo = 1', (err, rows) => {
