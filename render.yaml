@@ -1,0 +1,39 @@
+services:
+  # Web Service
+  - type: web
+    name: erp-maquinas
+    env: node
+    plan: free
+    buildCommand: "npm install"
+    startCommand: "npm start"
+    autoDeploy: true
+    
+    # Variáveis de ambiente
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      
+    # Health check
+    healthCheckPath: /
+    
+    # Configurações de build
+    buildFilter:
+      paths:
+        - .gitignore
+        - package.json
+        - server.js
+        - public/**
+    
+    # Headers para CORS
+    headers:
+      - path: /*
+        name: Access-Control-Allow-Origin
+        value: "*"
+      - path: /*
+        name: Access-Control-Allow-Methods
+        value: "GET, POST, PUT, DELETE, OPTIONS"
+      - path: /*
+        name: Access-Control-Allow-Headers
+        value: "Content-Type, Authorization"

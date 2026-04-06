@@ -1,30 +1,45 @@
 {
-  "name": "erp-comissoes",
+  "name": "erp-maquinas-costura",
   "version": "1.0.0",
-  "description": "Sistema ERP para controle de comissões de funcionários PJ",
+  "description": "Sistema ERP para controle de comissões de máquinas de costura",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
+    "migrate": "node migrate-to-supabase.js",
     "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "dependencies": {
-    "cors": "^2.8.5",
-    "express": "^4.18.2",
-    "jspdf": "^4.2.1",
-    "path": "^0.12.7",
-    "sqlite3": "^5.1.6",
-    "xml2js": "^0.6.2"
-  },
-  "devDependencies": {
-    "nodemon": "^3.0.1"
   },
   "keywords": [
     "erp",
-    "comissoes",
-    "pj",
-    "folha-pagamento"
+    "comissões",
+    "máquinas de costura",
+    "folha de pagamento",
+    "nodejs",
+    "express",
+    "supabase"
   ],
-  "author": "",
-  "license": "ISC"
+  "author": "Seu Nome",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "sqlite3": "^5.1.6",
+    "@supabase/supabase-js": "^2.38.4",
+    "dotenv": "^16.3.1",
+    "cors": "^2.8.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=14.0.0",
+    "npm": ">=6.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/seu-usuario/erp-maquinas-costura.git"
+  },
+  "bugs": {
+    "url": "https://github.com/seu-usuario/erp-maquinas-costura/issues"
+  },
+  "homepage": "https://erp-maquinas.onrender.com"
 }
