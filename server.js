@@ -36,17 +36,44 @@ async function createSupabaseTables() {
     console.log('Tentando criar tabelas no Supabase...');
     
     try {
-        // Usar endpoint original (forçar IPv4)
+        // Tentar diferentes endpoints do Supabase
         const { Client } = require('pg');
         
-        const client = new Client({
-            connectionString: process.env.DATABASE_URL,
-            ssl: { rejectUnauthorized: false },
-            family: 4  // Forçar IPv4
-        });
+        let databaseUrl = process.env.DATABASE_URL;
         
-        await client.connect();
-        console.log('Conectado ao PostgreSQL');
+        // Tentar diferentes endpoints
+        const endpoints = [
+            databaseUrl,  // Original
+            databaseUrl.replace('db.yuwddqxdnyjvilbmjooc.supabase.co', 'aws-0-sa-east-1.pooler.supabase.com'),  // AWS pooler
+            databaseUrl.replace('db.yuwddqxdnyjvilbmjooc.supabase.co', 'db.ylzilxqjzxyqyqfvgdl.supabase.co')  // Alternative
+        ];
+        
+        let client = null;
+        let connected = false;
+        
+        for (const url of endpoints) {
+            try {
+                console.log('Tentando conectar com:', url.split('@')[1]); // Mostra só o host
+                client = new Client({
+                    connectionString: url,
+                    ssl: { rejectUnauthorized: false }
+                });
+                
+                await client.connect();
+                connected = true;
+                console.log('Conectado ao PostgreSQL com:', url.split('@')[1]);
+                break;
+            } catch (err) {
+                console.log('Falha na conexão:', err.code);
+                if (client) {
+                    try { await client.end(); } catch (e) {}
+                }
+            }
+        }
+        
+        if (!connected) {
+            throw new Error('Não foi possível conectar ao Supabase com nenhum endpoint');
+        }
         
         // Criar tabelas uma por uma
         const tables = [
