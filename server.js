@@ -54,6 +54,36 @@ async function createSupabaseTables() {
         try {
             await client.connect();
             console.log('Conectado ao PostgreSQL com pooler!');
+            
+            // Criar tabela funcionarios
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS funcionarios (
+                    id BIGSERIAL PRIMARY KEY,
+                    nome TEXT NOT NULL,
+                    tipo TEXT NOT NULL CHECK(tipo IN ('vendedora', 'producao')),
+                    comissao_maquina_grande REAL DEFAULT 450,
+                    comissao_maquina_pequena REAL DEFAULT 250,
+                    comissao_extra_desconto REAL DEFAULT 100,
+                    salario_base REAL DEFAULT 0,
+                    comissao_maquina_producao REAL DEFAULT 100,
+                    meta_maquinas INTEGER DEFAULT 10,
+                    bonus_meta REAL DEFAULT 1000,
+                    ativo BOOLEAN DEFAULT true
+                )
+            `);
+            
+            // Criar tabela vendas
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS vendas (
+                    id BIGSERIAL PRIMARY KEY,
+                    id_funcionario BIGINT NOT NULL REFERENCES funcionarios(id),
+                    tipo_maquina TEXT NOT NULL CHECK(tipo_maquina IN ('grande', 'pequena')),
+                    quantidade_maquinas INTEGER NOT NULL,
+                    com_desconto BOOLEAN DEFAULT true,
+                    data_venda DATE NOT NULL
+                )
+            `);
+            
         } catch (connError) {
             console.log('Erro na conexão (timeout):', connError.message);
             throw connError;
@@ -157,18 +187,36 @@ const db = new sqlite3.Database('./erp.db', (err) => {
 });
 
 // GET funcionarios
-app.get('/api/funcionarios', (req, res) => {
-    db.all('SELECT * FROM funcionarios WHERE ativo = 1', (err, rows) => {
-        if (err) {
-            res.status(500).json({ error: err.message });
-            return;
+app.get('/api/funcionarios', async (req, res) => {
+    if (useSupabase) {
+        // Usar Supabase
+        console.log('Buscando funcionários no Supabase...');
+        const { data, error } = await supabase
+            .from('funcionarios')
+            .select('*')
+            .eq('ativo', true);
+        
+        if (error) {
+            console.log('Erro ao buscar no Supabase:', error);
+            return res.status(500).json({ error: error.message });
         }
-        res.json(rows);
-    });
+        
+        console.log('Funcionários encontrados no Supabase:', data.length);
+        res.json(data);
+    } else {
+        // Usar SQLite local
+        db.all('SELECT * FROM funcionarios WHERE ativo = 1', (err, rows) => {
+            if (err) {
+                res.status(500).json({ error: err.message });
+                return;
+            }
+            res.json(rows);
+        });
+    }
 });
 
 // POST funcionarios
-app.post('/api/funcionarios', (req, res) => {
+app.post('/api/funcionarios', async (req, res) => {
     console.log('=== POST /api/funcionarios ===');
     console.log('Dados recebidos:', req.body);
     
@@ -191,39 +239,68 @@ app.post('/api/funcionarios', (req, res) => {
             return res.status(400).json({ error: 'Nome e tipo são obrigatórios' });
         }
         
-        const sql = 'INSERT INTO funcionarios (nome, tipo, comissao_maquina_grande, comissao_maquina_pequena, comissao_extra_desconto, salario_base, comissao_maquina_producao, meta_maquinas, bonus_meta) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)';
-        const params = [
-            nome, 
-            tipo, 
-            Number(comissao_maquina_grande) || 450, 
-            Number(comissao_maquina_pequena) || 250, 
-            Number(comissao_extra_desconto) || 100,
-            Number(salario_base) || 0, 
-            Number(comissao_maquina_producao) || 100,
-            Number(meta_maquinas) || 10,
-            Number(bonus_meta) || 1000
-        ];
-        
-        db.run(sql, params, function(err) {
-            if (err) {
-                console.error('Erro no banco:', err);
-                return res.status(500).json({ error: err.message });
+        if (useSupabase) {
+            // Usar Supabase
+            console.log('Inserindo funcionário no Supabase...');
+            const { data, error } = await supabase
+                .from('funcionarios')
+                .insert([{
+                    nome, 
+                    tipo, 
+                    comissao_maquina_grande: Number(comissao_maquina_grande) || 450, 
+                    comissao_maquina_pequena: Number(comissao_maquina_pequena) || 250, 
+                    comissao_extra_desconto: Number(comissao_extra_desconto) || 100,
+                    salario_base: Number(salario_base) || 0, 
+                    comissao_maquina_producao: Number(comissao_maquina_producao) || 100,
+                    meta_maquinas: Number(meta_maquinas) || 10,
+                    bonus_meta: Number(bonus_meta) || 1000,
+                    ativo: true
+                }])
+                .select();
+            
+            if (error) {
+                console.log('Erro ao inserir no Supabase:', error);
+                return res.status(500).json({ error: error.message });
             }
-            console.log('Funcionário inserido com ID:', this.lastID);
-            res.json({ 
-                id: this.lastID, 
+            
+            console.log('Funcionário inserido no Supabase:', data[0]);
+            res.json(data[0]);
+        } else {
+            // Usar SQLite local
+            const sql = 'INSERT INTO funcionarios (nome, tipo, comissao_maquina_grande, comissao_maquina_pequena, comissao_extra_desconto, salario_base, comissao_maquina_producao, meta_maquinas, bonus_meta) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)';
+            const params = [
                 nome, 
                 tipo, 
-                comissao_maquina_grande: Number(comissao_maquina_grande) || 450, 
-                comissao_maquina_pequena: Number(comissao_maquina_pequena) || 250, 
-                comissao_extra_desconto: Number(comissao_extra_desconto) || 100,
-                salario_base: Number(salario_base) || 0, 
-                comissao_maquina_producao: Number(comissao_maquina_producao) || 100,
-                meta_maquinas: Number(meta_maquinas) || 10,
-                bonus_meta: Number(bonus_meta) || 1000,
-                ativo: true
+                Number(comissao_maquina_grande) || 450, 
+                Number(comissao_maquina_pequena) || 250, 
+                Number(comissao_extra_desconto) || 100,
+                Number(salario_base) || 0, 
+                Number(comissao_maquina_producao) || 100,
+                Number(meta_maquinas) || 10,
+                Number(bonus_meta) || 1000
+            ];
+            
+            db.run(sql, params, function(err) {
+                if (err) {
+                    console.error('Erro no banco:', err);
+                    return res.status(500).json({ error: err.message });
+                }
+                console.log('Funcionário inserido com ID:', this.lastID);
+                res.json({ 
+                    id: this.lastID, 
+                    nome, 
+                    tipo, 
+                    comissao_maquina_grande: Number(comissao_maquina_grande) || 450, 
+                    comissao_maquina_pequena: Number(comissao_maquina_pequena) || 250, 
+                    comissao_extra_desconto: Number(comissao_extra_desconto) || 100,
+                    salario_base: Number(salario_base) || 0, 
+                    comissao_maquina_producao: Number(comissao_maquina_producao) || 100,
+                    meta_maquinas: Number(meta_maquinas) || 10,
+                    bonus_meta: Number(bonus_meta) || 1000,
+                    ativo: true
+                });
             });
-        });
+        }
     } catch (error) {
         console.error('Erro geral:', error);
         res.status(500).json({ error: error.message });
