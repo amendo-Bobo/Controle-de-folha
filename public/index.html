@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ERP - Sistema de Comissões</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        .sidebar {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .sidebar .nav-link {
+            color: rgba(255,255,255,0.8);
+            border-radius: 8px;
+            margin: 2px 0;
+        }
+        .sidebar .nav-link:hover,
+        .sidebar .nav-link.active {
+            color: white;
+            background: rgba(255,255,255,0.1);
+        }
+        .main-content {
+            background: #f8f9fa;
+            min-height: 100vh;
+        }
+        .card {
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .stats-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+        }
+        .table th {
+            border-top: none;
+            background: #f8f9fa;
+            font-weight: 600;
+        }
+        .page-section {
+            display: none;
+        }
+        .page-section.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-md-3 col-lg-2 sidebar p-3">
+                <h4 class="text-white mb-4">
+                    <i class="bi bi-briefcase-fill"></i> ERP
+                </h4>
+                <nav class="nav flex-column">
+                    <a class="nav-link active" href="#" data-page="dashboard">
+                        <i class="bi bi-speedometer2"></i> Dashboard
+                    </a>
+                    <a class="nav-link" href="#" data-page="funcionarios">
+                        <i class="bi bi-people"></i> Funcionários
+                    </a>
+                    <a class="nav-link" href="#" data-page="vendas">
+                        <i class="bi bi-cart"></i> Vendas
+                    </a>
+                    <a class="nav-link" href="#" data-page="producao">
+                        <i class="bi bi-gear"></i> Produção
+                    </a>
+                    <a class="nav-link" href="#" data-page="folha-pagamento">
+                        <i class="bi bi-cash-stack"></i> Folha de Pagamento
+                    </a>
+                </nav>
+            </div>
+            
+            <div class="col-md-9 col-lg-10 main-content p-4">
+                <!-- Dashboard -->
+                <div id="dashboard" class="page-section active">
+                    <h2 class="mb-4">Dashboard</h2>
+                    <div class="row mb-4">
+                        <div class="col-md-3">
+                            <div class="card stats-card">
+                                <div class="card-body">
+                                    <h6 class="card-title">Total Funcionários</h6>
+                                    <h3 id="total-funcionarios">0</h3>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card stats-card">
+                                <div class="card-body">
+                                    <h6 class="card-title">Vendedoras</h6>
+                                    <h3 id="total-vendedoras">0</h3>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card stats-card">
+                                <div class="card-body">
+                                    <h6 class="card-title">Produção</h6>
+                                    <h3 id="total-producao">0</h3>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card stats-card">
+                                <div class="card-body">
+                                    <h6 class="card-title">Máquinas Vendidas</h6>
+                                    <h3 id="total-maquinas">0</h3>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5>Vendas Recentes</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div id="vendas-recentes"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5>Produção Recente</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div id="producao-recente"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Funcionários -->
+                <div id="funcionarios" class="page-section">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h2>Funcionários</h2>
+                        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalFuncionario">
+                            <i class="bi bi-plus"></i> Novo Funcionário
+                        </button>
+                    </div>
+                    
+                    <!-- Tabela de Vendedoras -->
+                    <div class="card mb-4">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0">🛍️ Vendedoras</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Nome</th>
+                                            <th>Comissão Grande</th>
+                                            <th>Comissão Pequena</th>
+                                            <th>Bônus Sem Desconto</th>
+                                            <th>Meta Máquinas</th>
+                                            <th>Bônus Meta</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tabela-vendedoras"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Tabela de Produção -->
+                    <div class="card">
+                        <div class="card-header bg-success text-white">
+                            <h5 class="mb-0">🏭 Produção</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Nome</th>
+                                            <th>Salário Base</th>
+                                            <th>Comissão por Máquina</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tabela-producao-funcionarios"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Vendas -->
+                <div id="vendas" class="page-section">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h2>Registro de Vendas</h2>
+                        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalVenda">
+                            <i class="bi bi-plus"></i> Nova Venda
+                        </button>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Funcionário</th>
+                                            <th>Tipo Máquina</th>
+                                            <th>Com Desconto</th>
+                                            <th>Quantidade</th>
+                                            <th>Data</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tabela-vendas"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Produção -->
+                <div id="producao" class="page-section">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h2>Registro de Produção</h2>
+                        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalProducao">
+                            <i class="bi bi-plus"></i> Nova Produção
+                        </button>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Funcionário</th>
+                                            <th>Máquinas Produzidas</th>
+                                            <th>Data</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tabela-producao"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Folha de Pagamento -->
+                <div id="folha-pagamento" class="page-section">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h2>Folha de Pagamento</h2>
+                        <div>
+                            <select class="form-select d-inline-block w-auto me-2" id="mes-folha">
+                                <option value="">Selecione o mês...</option>
+                            </select>
+                            <button class="btn btn-primary" onclick="gerarFolhaPagamento()">
+                                <i class="bi bi-calculator"></i> Gerar Folha
+                            </button>
+                            <button class="btn btn-warning" onclick="apagarFolhaExistente()">
+                                <i class="bi bi-trash"></i> Apagar Folha
+                            </button>
+                        </div>
+                        <div class="btn-group">
+                            <button class="btn btn-success" onclick="exportarPDF()">
+                                <i class="bi bi-file-earmark-pdf"></i> Exportar PDF
+                            </button>
+                            <button class="btn btn-info text-white" onclick="exportarXML()">
+                                <i class="bi bi-file-earmark-code"></i> Exportar XML
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="card mb-4">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0">🛍️ Vendedoras</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Funcionário</th>
+                                            <th>Comissões</th>
+                                            <th>Detalhe Comissões</th>
+                                            <th>Bonificação + Comissão Meta</th>
+                                            <th>Total</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tabela-folha-vendedoras"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header bg-success text-white">
+                            <h5 class="mb-0">🏭 Produção</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Funcionário</th>
+                                            <th>Salário Base</th>
+                                            <th>Comissões</th>
+                                            <th>Total</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tabela-folha-producao"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Funcionário -->
+    <div class="modal fade" id="modalFuncionario" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Novo Funcionário</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="form-funcionario">
+                        <div class="mb-3">
+                            <label class="form-label">Nome</label>
+                            <input type="text" class="form-control" id="func-nome" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Tipo</label>
+                            <select class="form-select" id="func-tipo" required>
+                                <option value="">Selecione...</option>
+                                <option value="vendedora">Vendedora</option>
+                                <option value="producao">Produção</option>
+                            </select>
+                        </div>
+                        <div class="mb-3" id="campo-comissao-grande">
+                            <label class="form-label">Comissão Máquina Grande (R$)</label>
+                            <input type="number" class="form-control" id="func-comissao-grande" value="450" step="0.01">
+                        </div>
+                        <div class="mb-3" id="campo-comissao-pequena">
+                            <label class="form-label">Comissão Máquina Pequena (R$)</label>
+                            <input type="number" class="form-control" id="func-comissao-pequena" value="250" step="0.01">
+                        </div>
+                        <div class="mb-3" id="campo-comissao-extra">
+                            <label class="form-label">Bônus Sem Desconto (R$)</label>
+                            <input type="number" class="form-control" id="func-comissao-extra" value="100" step="0.01">
+                        </div>
+                        <div class="mb-3" id="campo-meta">
+                            <label class="form-label">Meta de Máquinas</label>
+                            <input type="number" class="form-control" id="func-meta" value="10" step="1">
+                        </div>
+                        <div class="mb-3" id="campo-bonus-meta">
+                            <label class="form-label">Bônus Meta (R$)</label>
+                            <input type="number" class="form-control" id="func-bonus-meta" value="1000" step="0.01">
+                        </div>
+                        <div class="mb-3" id="campo-bonus-meta-extra">
+                            <label class="form-label">Bônus por Meta Extra (R$)</label>
+                            <input type="number" class="form-control" id="func-bonus-meta-extra" value="1000" step="0.01">
+                        </div>
+                        <div class="mb-3" id="campo-salario" style="display:none;">
+                            <label class="form-label">Salário Base (R$)</label>
+                            <input type="number" class="form-control" id="func-salario" value="3000" step="0.01">
+                        </div>
+                        <div class="mb-3" id="campo-comissao-producao" style="display:none;">
+                            <label class="form-label">Comissão por Máquina (R$)</label>
+                            <input type="number" class="form-control" id="func-comissao-producao" value="100" step="0.01">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" onclick="salvarFuncionario()">Salvar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Venda -->
+    <div class="modal fade" id="modalVenda" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Nova Venda</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="form-venda">
+                        <div class="mb-3">
+                            <label class="form-label">Vendedora</label>
+                            <select class="form-select" id="venda-funcionario" required>
+                                <option value="">Selecione...</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Tipo de Máquina</label>
+                            <select class="form-select" id="venda-tipo-maquina" required>
+                                <option value="">Selecione...</option>
+                                <option value="grande">Máquina Grande</option>
+                                <option value="pequena">Máquina Pequena</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Venda com Desconto?</label>
+                            <select class="form-select" id="venda-com-desconto" required>
+                                <option value="">Selecione...</option>
+                                <option value="true">Sim (comissão normal)</option>
+                                <option value="false">Não (+R$ 100 na comissão)</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Quantidade</label>
+                            <input type="number" class="form-control" id="venda-quantidade" min="1" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Data da Venda</label>
+                            <input type="date" class="form-control" id="venda-data" required>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" onclick="salvarVenda()">Salvar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Produção -->
+    <div class="modal fade" id="modalProducao" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Nova Produção</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="form-producao">
+                        <div class="mb-3">
+                            <label class="form-label">Funcionário</label>
+                            <select class="form-select" id="producao-funcionario" required>
+                                <option value="">Selecione...</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Máquinas Produzidas</label>
+                            <input type="number" class="form-control" id="producao-maquinas" min="0" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Data</label>
+                            <input type="date" class="form-control" id="producao-data" required>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" onclick="salvarProducao()">Salvar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
