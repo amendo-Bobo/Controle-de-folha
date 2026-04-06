@@ -292,34 +292,51 @@ app.post('/api/funcionarios', async (req, res) => {
         }
         
         if (useSupabase) {
-            // Usar Supabase
-            console.log('Inserindo funcionário no Supabase...');
+            // Usar PostgreSQL direto
+            console.log('Inserindo funcionário no PostgreSQL...');
+            const { Client } = require('pg');
+            
             try {
-                const { data, error } = await supabase
-                    .from('funcionarios')
-                    .insert([{
+                // Usar o endpoint correto do pooler
+                const poolerUrl = databaseUrl.replace(
+                    'postgresql://postgres:tiVW2cmpeVStByLm@db.yuwddqxdnyjvilbmjooc.supabase.co:5432/postgres',
+                    'postgresql://postgres.yuwddqxdnyjvilbmjooc:tiVW2cmpeVStByLm@aws-1-sa-east-1.pooler.supabase.com:6543/postgres'
+                );
+                
+                const client = new Client({
+                    connectionString: poolerUrl,
+                    ssl: { rejectUnauthorized: false },
+                    connectionTimeoutMillis: 10000,
+                    query_timeout: 10000
+                });
+                
+                await client.connect();
+                
+                const result = await client.query(
+                    `INSERT INTO funcionarios (nome, tipo, comissao_maquina_grande, comissao_maquina_pequena, 
+                     comissao_extra_desconto, salario_base, comissao_maquina_producao, meta_maquinas, bonus_meta, ativo) 
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true) 
+                     RETURNING *`,
+                    [
                         nome, 
                         tipo, 
-                        comissao_maquina_grande: Number(comissao_maquina_grande) || 450, 
-                        comissao_maquina_pequena: Number(comissao_maquina_pequena) || 250, 
-                        comissao_extra_desconto: Number(comissao_extra_desconto) || 100,
-                        salario_base: Number(salario_base) || 0, 
-                        comissao_maquina_producao: Number(comissao_maquina_producao) || 100,
-                        meta_maquinas: Number(meta_maquinas) || 10,
-                        bonus_meta: Number(bonus_meta) || 1000,
-                        ativo: true
-                    }])
-                    .select();
+                        Number(comissao_maquina_grande) || 450, 
+                        Number(comissao_maquina_pequena) || 250, 
+                        Number(comissao_extra_desconto) || 100,
+                        Number(salario_base) || 0, 
+                        Number(comissao_maquina_producao) || 100,
+                        Number(meta_maquinas) || 10,
+                        Number(bonus_meta) || 1000
+                    ]
+                );
                 
-                if (error) {
-                    console.log('Erro ao inserir no Supabase:', error);
-                    throw error;
-                }
+                console.log('Funcionário inserido no PostgreSQL:', result.rows[0]);
                 
-                console.log('Funcionário inserido no Supabase:', data[0]);
-                res.json(data[0]);
-            } catch (supabaseError) {
-                console.log('Supabase falhou, usando SQLite fallback:', supabaseError.message);
+                await client.end();
+                
+                res.json(result.rows[0]);
+            } catch (pgError) {
+                console.log('PostgreSQL falhou, usando SQLite fallback:', pgError.message);
                 
                 // Fallback para SQLite
                 const sql = 'INSERT INTO funcionarios (nome, tipo, comissao_maquina_grande, comissao_maquina_pequena, comissao_extra_desconto, salario_base, comissao_maquina_producao, meta_maquinas, bonus_meta) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)';
