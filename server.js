@@ -36,14 +36,16 @@ async function createSupabaseTables() {
     console.log('Tentando criar tabelas no Supabase...');
     
     try {
-        // Forçar IPv4 na conexão
+        // Usar endpoint de connection pooling (IPv4)
         const { Client } = require('pg');
-        const databaseUrl = process.env.DATABASE_URL.replace('postgres://', 'postgresql://');
+        
+        // Mudar para endpoint pooling que usa IPv4
+        let databaseUrl = process.env.DATABASE_URL;
+        databaseUrl = databaseUrl.replace('db.yuwddqxdnyjvilbmjooc.supabase.co', 'db.yuwddqxdnyjvilbmjooc-pool.supabase.co');
         
         const client = new Client({
             connectionString: databaseUrl,
-            ssl: { rejectUnauthorized: false },
-            family: 4  // Forçar IPv4
+            ssl: { rejectUnauthorized: false }
         });
         
         await client.connect();
