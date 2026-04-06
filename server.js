@@ -142,17 +142,35 @@ app.use(cors());
 app.use(express.json());
 
 // Rotas primeiro
-app.get('/api/funcionarios', (req, res) => {
-    db.all('SELECT * FROM funcionarios WHERE ativo = 1', (err, rows) => {
-        if (err) {
+app.get('/api/funcionarios', async (req, res) => {
+    if (useSupabase) {
+        try {
+            const { data, error } = await supabase
+                .from('funcionarios')
+                .select('*')
+                .eq('ativo', true);
+            
+            if (error) {
+                res.status(500).json({ error: error.message });
+                return;
+            }
+            
+            res.json(data);
+        } catch (err) {
             res.status(500).json({ error: err.message });
-            return;
         }
-        res.json(rows);
-    });
+    } else {
+        db.all('SELECT * FROM funcionarios WHERE ativo = 1', (err, rows) => {
+            if (err) {
+                res.status(500).json({ error: err.message });
+                return;
+            }
+            res.json(rows);
+        });
+    }
 });
 
-app.post('/api/funcionarios', (req, res) => {
+app.post('/api/funcionarios', async (req, res) => {
     console.log('=== POST /api/funcionarios ===');
     console.log('Headers:', req.headers);
     console.log('Dados recebidos:', req.body);
@@ -188,44 +206,75 @@ app.post('/api/funcionarios', (req, res) => {
             return res.status(400).json({ error: 'Nome e tipo são obrigatórios' });
         }
         
-        const sql = 'INSERT INTO funcionarios (nome, tipo, comissao_maquina_grande, comissao_maquina_pequena, comissao_extra_desconto, salario_base, comissao_maquina_producao, meta_maquinas, bonus_meta) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)';
-        const params = [
-            nome, 
-            tipo, 
-            Number(comissao_maquina_grande) || 450, 
-            Number(comissao_maquina_pequena) || 250, 
-            Number(comissao_extra_desconto) || 100,
-            Number(salario_base) || 0, 
-            Number(comissao_maquina_producao) || 100,
-            Number(meta_maquinas) || 10,
-            Number(bonus_meta) || 1000
-        ];
-        
-        console.log('SQL:', sql);
-        console.log('Params:', params);
-        console.log('Número de parâmetros:', params.length);
-        
-        db.run(sql, params, function(err) {
-            if (err) {
-                console.error('Erro no banco:', err);
-                return res.status(500).json({ error: err.message });
+        if (useSupabase) {
+            // Usar Supabase
+            const { data, error } = await supabase
+                .from('funcionarios')
+                .insert([{
+                    nome, 
+                    tipo, 
+                    comissao_maquina_grande: Number(comissao_maquina_grande) || 450, 
+                    comissao_maquina_pequena: Number(comissao_maquina_pequena) || 250, 
+                    comissao_extra_desconto: Number(comissao_extra_desconto) || 100,
+                    salario_base: Number(salario_base) || 0, 
+                    comissao_maquina_producao: Number(comissao_maquina_producao) || 100,
+                    meta_maquinas: Number(meta_maquinas) || 10,
+                    bonus_meta: Number(bonus_meta) || 1000,
+                    ativo: true
+                }])
+                .select();
+            
+            if (error) {
+                console.log('Erro ao inserir no Supabase:', error);
+                return res.status(500).json({ error: error.message });
             }
-            console.log('Funcionário inserido com ID:', this.lastID);
-            res.json({ 
-                id: this.lastID, 
+            
+            console.log('Funcionário inserido no Supabase:', data[0]);
+            res.json(data[0]);
+        } else {
+            // Usar SQLite local
+            const sql = 'INSERT INTO funcionarios (nome, tipo, comissao_maquina_grande, comissao_maquina_pequena, comissao_extra_desconto, salario_base, comissao_maquina_producao, meta_maquinas, bonus_meta) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)';
+            const params = [
                 nome, 
                 tipo, 
-                comissao_maquina_grande, 
-                comissao_maquina_pequena, 
-                comissao_extra_desconto,
-                salario_base, 
-                comissao_maquina_producao,
-                meta_maquinas,
-                bonus_meta
+                Number(comissao_maquina_grande) || 450, 
+                Number(comissao_maquina_pequena) || 250, 
+                Number(comissao_extra_desconto) || 100,
+                Number(salario_base) || 0, 
+                Number(comissao_maquina_producao) || 100,
+                Number(meta_maquinas) || 10,
+                Number(bonus_meta) || 1000
+            ];
+            
+            console.log('SQL:', sql);
+            console.log('Params:', params);
+            console.log('Número de parâmetros:', params.length);
+            
+            db.run(sql, params, function(err) {
+                if (err) {
+                    console.log('Erro ao inserir funcionário:', err);
+                    res.status(500).json({ error: err.message });
+                    return;
+                }
+                
+                console.log('Funcionário inserido com ID:', this.lastID);
+                res.json({ 
+                    id: this.lastID,
+                    nome, 
+                    tipo, 
+                    comissao_maquina_grande: Number(comissao_maquina_grande) || 450, 
+                    comissao_maquina_pequena: Number(comissao_maquina_pequena) || 250, 
+                    comissao_extra_desconto: Number(comissao_extra_desconto) || 100,
+                    salario_base: Number(salario_base) || 0, 
+                    comissao_maquina_producao: Number(comissao_maquina_producao) || 100,
+                    meta_maquinas: Number(meta_maquinas) || 10,
+                    bonus_meta: Number(bonus_meta) || 1000,
+                    ativo: true
+                });
             });
-        });
+        }
     } catch (error) {
-        console.error('Erro geral:', error);
+        console.log('Erro no POST /api/funcionarios:', error);
         res.status(500).json({ error: error.message });
     }
 });
