@@ -207,6 +207,9 @@ app.get('/api/funcionarios', async (req, res) => {
     if (useSupabase) {
         // Usar Supabase
         console.log('Buscando funcionários no Supabase...');
+        let supabaseData = null;
+        let supabaseError = null;
+        
         try {
             const { data, error } = await supabase
                 .from('funcionarios')
@@ -215,23 +218,32 @@ app.get('/api/funcionarios', async (req, res) => {
             
             if (error) {
                 console.log('Erro ao buscar no Supabase:', error);
-                throw error;
+                supabaseError = error;
+            } else {
+                console.log('Funcionários encontrados no Supabase:', data.length);
+                supabaseData = data;
             }
-            
-            console.log('Funcionários encontrados no Supabase:', data.length);
-            res.json(data);
-        } catch (supabaseError) {
-            console.log('Supabase falhou, usando SQLite fallback:', supabaseError.message);
+        } catch (tryError) {
+            console.log('Exceção no Supabase:', tryError.message);
+            supabaseError = tryError;
+        }
+        
+        // Se Supabase falhou, usar SQLite
+        if (supabaseError || !supabaseData) {
+            console.log('Supabase falhou, usando SQLite fallback...');
             
             // Fallback para SQLite
             db.all('SELECT * FROM funcionarios WHERE ativo = 1', (err, rows) => {
                 if (err) {
-                    res.status(500).json({ error: err.message });
-                    return;
+                    console.error('Erro no SQLite fallback:', err);
+                    return res.status(500).json({ error: err.message });
                 }
                 console.log('Funcionários encontrados no SQLite fallback:', rows.length);
                 res.json(rows);
             });
+        } else {
+            // Supabase funcionou
+            res.json(supabaseData);
         }
     } else {
         // Usar SQLite local
