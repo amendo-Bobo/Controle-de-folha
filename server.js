@@ -36,10 +36,14 @@ async function createSupabaseTables() {
     console.log('Tentando criar tabelas no Supabase...');
     
     try {
-        // Usar PostgreSQL direto para criar tabelas
+        // Forçar IPv4 na conexão
         const { Client } = require('pg');
+        const databaseUrl = process.env.DATABASE_URL.replace('postgres://', 'postgresql://');
+        
         const client = new Client({
-            connectionString: process.env.DATABASE_URL
+            connectionString: databaseUrl,
+            ssl: { rejectUnauthorized: false },
+            family: 4  // Forçar IPv4
         });
         
         await client.connect();
