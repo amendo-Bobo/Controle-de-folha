@@ -2,11 +2,121 @@ const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
 const path = require('path');
+require('dotenv').config();
+
+// Importar Supabase
+const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 console.log('Iniciando servidor...');
+
+// Configurar Supabase
+const supabaseUrl = process.env.SUPABASE_URL || 'https://db.yuwddqxdnyjvilbmjooc.supabase.co';
+const supabaseKey = process.env.SUPABASE_PASSWORD || 'tiVW2cmpeVStByLm';
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+// Verificar se está usando Supabase
+const useSupabase = process.env.DATABASE_URL && process.env.DATABASE_URL.includes('supabase');
+console.log('Usando Supabase:', useSupabase);
+
+// Função para criar tabelas no Supabase
+async function createSupabaseTables() {
+    if (!useSupabase) return;
+    
+    try {
+        console.log('Criando tabelas no Supabase...');
+        
+        // Usar SQL direto com o cliente Supabase
+        const { data, error } = await supabase
+            .from('funcionarios')
+            .select('*')
+            .limit(1);
+        
+        // Se der erro na tabela, tenta criar
+        if (error && error.message.includes('relation "funcionarios" does not exist')) {
+            console.log('Tabelas não existem, criando...');
+            
+            // Tentar criar tabelas usando SQL bruto
+            const createTablesSQL = `
+                CREATE TABLE IF NOT EXISTS funcionarios (
+                    id SERIAL PRIMARY KEY,
+                    nome TEXT NOT NULL,
+                    tipo TEXT NOT NULL CHECK(tipo IN ('vendedora', 'producao')),
+                    comissao_maquina_grande REAL DEFAULT 450,
+                    comissao_maquina_pequena REAL DEFAULT 250,
+                    comissao_extra_desconto REAL DEFAULT 100,
+                    salario_base REAL DEFAULT 0,
+                    comissao_maquina_producao REAL DEFAULT 100,
+                    meta_maquinas INTEGER DEFAULT 10,
+                    bonus_meta REAL DEFAULT 1000,
+                    ativo BOOLEAN DEFAULT true,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                
+                CREATE TABLE IF NOT EXISTS vendas (
+                    id SERIAL PRIMARY KEY,
+                    id_funcionario INTEGER NOT NULL REFERENCES funcionarios(id),
+                    tipo_maquina TEXT NOT NULL CHECK(tipo_maquina IN ('grande', 'pequeno')),
+                    quantidade_maquinas INTEGER NOT NULL,
+                    com_desconto BOOLEAN DEFAULT true,
+                    data_venda DATE NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                
+                CREATE TABLE IF NOT EXISTS producao (
+                    id SERIAL PRIMARY KEY,
+                    id_funcionario INTEGER NOT NULL REFERENCES funcionarios(id),
+                    maquinas_produzidas INTEGER NOT NULL,
+                    data_producao DATE NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                
+                CREATE TABLE IF NOT EXISTS folha_pagamento (
+                    id SERIAL PRIMARY KEY,
+                    id_funcionario INTEGER NOT NULL REFERENCES funcionarios(id),
+                    mes_referencia TEXT NOT NULL,
+                    salario_base REAL NOT NULL,
+                    comissoes REAL NOT NULL,
+                    bonus REAL NOT NULL,
+                    total REAL NOT NULL,
+                    data_geracao DATE NOT NULL,
+                    detalhe_comissoes TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            `;
+            
+            // Executar SQL usando o cliente Postgres direto
+            const { Client } = require('pg');
+            const client = new Client({
+                connectionString: process.env.DATABASE_URL
+            });
+            
+            await client.connect();
+            await client.query(createTablesSQL);
+            await client.end();
+            
+            console.log('Tabelas criadas com sucesso no Supabase!');
+            
+            // Inserir dados de exemplo
+            await supabase.from('funcionarios').insert([
+                { nome: 'Maria Silva', tipo: 'vendedora' },
+                { nome: 'João Santos', tipo: 'producao' },
+                { nome: 'Ana Costa', tipo: 'vendedora' }
+            ]);
+            
+            console.log('Dados de exemplo inseridos!');
+        } else {
+            console.log('Tabelas já existem no Supabase');
+        }
+        
+    } catch (error) {
+        console.log('Erro ao configurar Supabase:', error.message);
+        console.log('Continuando sem criar tabelas automaticamente...');
+    }
+}
 
 app.use(cors());
 app.use(express.json());
@@ -766,8 +876,12 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
     console.log(`Servidor ERP rodando em http://localhost:${PORT}`);
+    
+    // Criar tabelas no Supabase se estiver usando
+    await createSupabaseTables();
+    
     console.log('Endpoints disponíveis:');
     console.log('- GET /api/funcionarios');
     console.log('- POST /api/funcionarios');
