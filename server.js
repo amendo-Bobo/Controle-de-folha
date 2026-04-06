@@ -20,104 +20,109 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 // Verificar se está usando Supabase
 const useSupabase = process.env.DATABASE_URL && 
                    (process.env.DATABASE_URL.includes('supabase') || 
-                    process.env.DATABASE_URL.includes('yuwddqxdnyjvilbmjooc'));
+                    process.env.DATABASE_URL.includes('yuwddqxdnyjvilbmjooc') ||
+                    process.env.DATABASE_URL.includes('db.yuwddqxdnyjvilbmjooc.supabase.co'));
 console.log('DATABASE_URL:', process.env.DATABASE_URL ? 'Configurada' : 'Não configurada');
 console.log('Usando Supabase:', useSupabase);
 
 // Função para criar tabelas no Supabase
 async function createSupabaseTables() {
-    if (!useSupabase) return;
+    // Forçar criação se tiver DATABASE_URL
+    if (!process.env.DATABASE_URL) {
+        console.log('DATABASE_URL não configurada, pulando criação de tabelas');
+        return;
+    }
+    
+    console.log('Tentando criar tabelas no Supabase...');
     
     try {
-        console.log('Criando tabelas no Supabase...');
+        // Usar PostgreSQL direto para criar tabelas
+        const { Client } = require('pg');
+        const client = new Client({
+            connectionString: process.env.DATABASE_URL
+        });
         
-        // Usar SQL direto com o cliente Supabase
-        const { data, error } = await supabase
-            .from('funcionarios')
-            .select('*')
-            .limit(1);
+        await client.connect();
+        console.log('Conectado ao PostgreSQL');
         
-        // Se der erro na tabela, tenta criar
-        if (error && error.message.includes('relation "funcionarios" does not exist')) {
-            console.log('Tabelas não existem, criando...');
+        // Criar tabelas uma por uma
+        const tables = [
+            `CREATE TABLE IF NOT EXISTS funcionarios (
+                id SERIAL PRIMARY KEY,
+                nome TEXT NOT NULL,
+                tipo TEXT NOT NULL CHECK(tipo IN ('vendedora', 'producao')),
+                comissao_maquina_grande REAL DEFAULT 450,
+                comissao_maquina_pequena REAL DEFAULT 250,
+                comissao_extra_desconto REAL DEFAULT 100,
+                salario_base REAL DEFAULT 0,
+                comissao_maquina_producao REAL DEFAULT 100,
+                meta_maquinas INTEGER DEFAULT 10,
+                bonus_meta REAL DEFAULT 1000,
+                ativo BOOLEAN DEFAULT true,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )`,
             
-            // Tentar criar tabelas usando SQL bruto
-            const createTablesSQL = `
-                CREATE TABLE IF NOT EXISTS funcionarios (
-                    id SERIAL PRIMARY KEY,
-                    nome TEXT NOT NULL,
-                    tipo TEXT NOT NULL CHECK(tipo IN ('vendedora', 'producao')),
-                    comissao_maquina_grande REAL DEFAULT 450,
-                    comissao_maquina_pequena REAL DEFAULT 250,
-                    comissao_extra_desconto REAL DEFAULT 100,
-                    salario_base REAL DEFAULT 0,
-                    comissao_maquina_producao REAL DEFAULT 100,
-                    meta_maquinas INTEGER DEFAULT 10,
-                    bonus_meta REAL DEFAULT 1000,
-                    ativo BOOLEAN DEFAULT true,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-                
-                CREATE TABLE IF NOT EXISTS vendas (
-                    id SERIAL PRIMARY KEY,
-                    id_funcionario INTEGER NOT NULL REFERENCES funcionarios(id),
-                    tipo_maquina TEXT NOT NULL CHECK(tipo_maquina IN ('grande', 'pequeno')),
-                    quantidade_maquinas INTEGER NOT NULL,
-                    com_desconto BOOLEAN DEFAULT true,
-                    data_venda DATE NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-                
-                CREATE TABLE IF NOT EXISTS producao (
-                    id SERIAL PRIMARY KEY,
-                    id_funcionario INTEGER NOT NULL REFERENCES funcionarios(id),
-                    maquinas_produzidas INTEGER NOT NULL,
-                    data_producao DATE NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-                
-                CREATE TABLE IF NOT EXISTS folha_pagamento (
-                    id SERIAL PRIMARY KEY,
-                    id_funcionario INTEGER NOT NULL REFERENCES funcionarios(id),
-                    mes_referencia TEXT NOT NULL,
-                    salario_base REAL NOT NULL,
-                    comissoes REAL NOT NULL,
-                    bonus REAL NOT NULL,
-                    total REAL NOT NULL,
-                    data_geracao DATE NOT NULL,
-                    detalhe_comissoes TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-            `;
+            `CREATE TABLE IF NOT EXISTS vendas (
+                id SERIAL PRIMARY KEY,
+                id_funcionario INTEGER NOT NULL REFERENCES funcionarios(id),
+                tipo_maquina TEXT NOT NULL CHECK(tipo_maquina IN ('grande', 'pequeno')),
+                quantidade_maquinas INTEGER NOT NULL,
+                com_desconto BOOLEAN DEFAULT true,
+                data_venda DATE NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )`,
             
-            // Executar SQL usando o cliente Postgres direto
-            const { Client } = require('pg');
-            const client = new Client({
-                connectionString: process.env.DATABASE_URL
-            });
+            `CREATE TABLE IF NOT EXISTS producao (
+                id SERIAL PRIMARY KEY,
+                id_funcionario INTEGER NOT NULL REFERENCES funcionarios(id),
+                maquinas_produzidas INTEGER NOT NULL,
+                data_producao DATE NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )`,
             
-            await client.connect();
-            await client.query(createTablesSQL);
-            await client.end();
-            
-            console.log('Tabelas criadas com sucesso no Supabase!');
-            
-            // Inserir dados de exemplo
-            await supabase.from('funcionarios').insert([
-                { nome: 'Maria Silva', tipo: 'vendedora' },
-                { nome: 'João Santos', tipo: 'producao' },
-                { nome: 'Ana Costa', tipo: 'vendedora' }
-            ]);
-            
-            console.log('Dados de exemplo inseridos!');
-        } else {
-            console.log('Tabelas já existem no Supabase');
+            `CREATE TABLE IF NOT EXISTS folha_pagamento (
+                id SERIAL PRIMARY KEY,
+                id_funcionario INTEGER NOT NULL REFERENCES funcionarios(id),
+                mes_referencia TEXT NOT NULL,
+                salario_base REAL NOT NULL,
+                comissoes REAL NOT NULL,
+                bonus REAL NOT NULL,
+                total REAL NOT NULL,
+                data_geracao DATE NOT NULL,
+                detalhe_comissoes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )`
+        ];
+        
+        for (const sql of tables) {
+            try {
+                await client.query(sql);
+                console.log('Tabela criada com sucesso');
+            } catch (err) {
+                console.log('Erro ao criar tabela (pode já existir):', err.message);
+            }
         }
+        
+        // Verificar se tem dados e inserir exemplos
+        const result = await client.query('SELECT COUNT(*) as count FROM funcionarios');
+        if (parseInt(result.rows[0].count) === 0) {
+            console.log('Inserindo dados de exemplo...');
+            await client.query(`
+                INSERT INTO funcionarios (nome, tipo) VALUES 
+                ('Maria Silva', 'vendedora'),
+                ('João Santos', 'producao'),
+                ('Ana Costa', 'vendedora')
+            `);
+            console.log('Dados de exemplo inseridos!');
+        }
+        
+        await client.end();
+        console.log('Tabelas criadas com sucesso no Supabase!');
         
     } catch (error) {
         console.log('Erro ao configurar Supabase:', error.message);
-        console.log('Continuando sem criar tabelas automaticamente...');
+        console.log('Detalhes do erro:', error);
     }
 }
 
