@@ -41,39 +41,21 @@ async function createSupabaseTables() {
         
         let databaseUrl = process.env.DATABASE_URL;
         
-        // Tentar diferentes endpoints
-        const endpoints = [
-            databaseUrl,  // Original
-            databaseUrl.replace('db.yuwddqxdnyjvilbmjooc.supabase.co', 'aws-0-sa-east-1.pooler.supabase.com'),  // AWS pooler
-            databaseUrl.replace('db.yuwddqxdnyjvilbmjooc.supabase.co', 'db.ylzilxqjzxyqyqfvgdl.supabase.co')  // Alternative
-        ];
+        // Usar o endpoint correto do pooler
+        const poolerUrl = databaseUrl.replace(
+            'postgresql://postgres:tiVW2cmpeVStByLm@db.yuwddqxdnyjvilbmjooc.supabase.co:5432/postgres',
+            'postgresql://postgres.yuwddqxdnyjvilbmjooc:tiVW2cmpeVStByLm@aws-1-sa-east-1.pooler.supabase.com:6543/postgres'
+        );
         
-        let client = null;
-        let connected = false;
+        console.log('Tentando conectar com:', poolerUrl.split('@')[1]); // Mostra só o host
         
-        for (const url of endpoints) {
-            try {
-                console.log('Tentando conectar com:', url.split('@')[1]); // Mostra só o host
-                client = new Client({
-                    connectionString: url,
-                    ssl: { rejectUnauthorized: false }
-                });
-                
-                await client.connect();
-                connected = true;
-                console.log('Conectado ao PostgreSQL com:', url.split('@')[1]);
-                break;
-            } catch (err) {
-                console.log('Falha na conexão:', err.code);
-                if (client) {
-                    try { await client.end(); } catch (e) {}
-                }
-            }
-        }
+        const client = new Client({
+            connectionString: poolerUrl,
+            ssl: { rejectUnauthorized: false }
+        });
         
-        if (!connected) {
-            throw new Error('Não foi possível conectar ao Supabase com nenhum endpoint');
-        }
+        await client.connect();
+        console.log('Conectado ao PostgreSQL com pooler!');
         
         // Criar tabelas uma por uma
         const tables = [
