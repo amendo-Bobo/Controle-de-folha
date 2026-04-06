@@ -208,35 +208,37 @@ app.get('/api/funcionarios', async (req, res) => {
     console.log('useSupabase:', useSupabase);
     
     if (useSupabase) {
-        // Usar Supabase
-        console.log('Buscando funcionários no Supabase...');
-        let supabaseData = null;
-        let supabaseError = null;
+        // Usar PostgreSQL direto
+        console.log('Buscando funcionários no PostgreSQL...');
+        const { Client } = require('pg');
         
         try {
-            const { data, error } = await supabase
-                .from('funcionarios')
-                .select('*')
-                .eq('ativo', true);
+            // Usar o endpoint correto do pooler
+            const poolerUrl = databaseUrl.replace(
+                'postgresql://postgres:tiVW2cmpeVStByLm@db.yuwddqxdnyjvilbmjooc.supabase.co:5432/postgres',
+                'postgresql://postgres.yuwddqxdnyjvilbmjooc:tiVW2cmpeVStByLm@aws-1-sa-east-1.pooler.supabase.com:6543/postgres'
+            );
             
-            console.log('Resposta Supabase - data:', data);
-            console.log('Resposta Supabase - error:', error);
+            const client = new Client({
+                connectionString: poolerUrl,
+                ssl: { rejectUnauthorized: false },
+                connectionTimeoutMillis: 10000,
+                query_timeout: 10000
+            });
             
-            if (error) {
-                console.log('Erro ao buscar no Supabase:', error);
-                supabaseError = error;
-            } else {
-                console.log('Funcionários encontrados no Supabase:', data?.length || 0);
-                supabaseData = data;
-            }
-        } catch (tryError) {
-            console.log('Exceção no Supabase:', tryError.message);
-            supabaseError = tryError;
-        }
-        
-        // Se Supabase falhou, usar SQLite
-        if (supabaseError || !supabaseData) {
-            console.log('Supabase falhou, usando SQLite fallback...');
+            await client.connect();
+            
+            const result = await client.query('SELECT * FROM funcionarios WHERE ativo = true ORDER BY created_at DESC');
+            
+            console.log('Funcionários encontrados no PostgreSQL:', result.rows.length);
+            console.log('Dados:', result.rows);
+            
+            await client.end();
+            
+            res.json(result.rows);
+            
+        } catch (error) {
+            console.log('Erro no PostgreSQL, usando SQLite fallback:', error.message);
             
             // Fallback para SQLite
             db.all('SELECT * FROM funcionarios WHERE ativo = 1', (err, rows) => {
@@ -248,10 +250,6 @@ app.get('/api/funcionarios', async (req, res) => {
                 console.log('Dados SQLite:', rows);
                 res.json(rows);
             });
-        } else {
-            // Supabase funcionou
-            console.log('Retornando dados do Supabase:', supabaseData);
-            res.json(supabaseData);
         }
     } else {
         // Usar SQLite local
