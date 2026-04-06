@@ -280,7 +280,7 @@ app.post('/api/funcionarios', async (req, res) => {
 });
 
 // Endpoint de vendas
-app.post('/api/vendas', (req, res) => {
+app.post('/api/vendas', async (req, res) => {
     console.log('=== POST /api/vendas RECEBIDA ===');
     console.log('Body completo:', JSON.stringify(req.body, null, 2));
     
@@ -292,27 +292,71 @@ app.post('/api/vendas', (req, res) => {
     console.log('Com desconto:', com_desconto);
     console.log('Data:', data_venda);
     
-    // Verificar se a tabela vendas existe e qual a estrutura
-    console.log('Verificando estrutura da tabela vendas...');
-    db.all("PRAGMA table_info(vendas)", (err, columns) => {
-        if (err) {
-            console.error('Erro ao verificar tabela vendas:', err);
-            res.status(500).json({ error: err.message });
-            return;
+    if (useSupabase) {
+        try {
+            // Verificar se funcionário existe no Supabase
+            const { data: funcionario, error: errorFunc } = await supabase
+                .from('funcionarios')
+                .select('id, nome, ativo')
+                .eq('id', id_funcionario)
+                .single();
+            
+            if (errorFunc || !funcionario) {
+                console.log('Funcionário não encontrado no Supabase:', errorFunc);
+                return res.status(400).json({ error: 'Funcionário não encontrado' });
+            }
+            
+            console.log('Funcionário encontrado no Supabase:', funcionario);
+            
+            // Inserir venda no Supabase
+            const { data, error } = await supabase
+                .from('vendas')
+                .insert([{
+                    id_funcionario: Number(id_funcionario),
+                    tipo_maquina,
+                    quantidade_maquinas: Number(quantidade_maquinas),
+                    com_desconto: Boolean(com_desconto),
+                    data_venda
+                }])
+                .select();
+            
+            if (error) {
+                console.log('Erro ao inserir venda no Supabase:', error);
+                return res.status(500).json({ error: error.message });
+            }
+            
+            console.log('Venda inserida no Supabase:', data[0]);
+            res.json(data[0]);
+            
+        } catch (error) {
+            console.log('Erro no POST /api/vendas:', error);
+            res.status(500).json({ error: error.message });
         }
+    } else {
+        // Usar SQLite local (código original)
+        console.log('Usando SQLite local para vendas');
         
-        console.log('Estrutura da tabela vendas:', columns);
-        
-        // Verificar se o funcionário existe
-        console.log('Verificando se funcionário', id_funcionario, 'existe...');
-        db.get('SELECT id, nome, ativo FROM funcionarios WHERE id = ?', [id_funcionario], (err, row) => {
+        // Verificar se a tabela vendas existe e qual a estrutura
+        console.log('Verificando estrutura da tabela vendas...');
+        db.all("PRAGMA table_info(vendas)", (err, columns) => {
             if (err) {
-                console.error('Erro ao verificar funcionário:', err);
+                console.error('Erro ao verificar tabela vendas:', err);
                 res.status(500).json({ error: err.message });
                 return;
             }
             
-            console.log('Resultado da consulta:', row);
+            console.log('Estrutura da tabela vendas:', columns);
+            
+            // Verificar se o funcionário existe
+            console.log('Verificando se funcionário', id_funcionario, 'existe...');
+            db.get('SELECT id, nome, ativo FROM funcionarios WHERE id = ?', [id_funcionario], (err, row) => {
+                if (err) {
+                    console.error('Erro ao verificar funcionário:', err);
+                    res.status(500).json({ error: err.message });
+                    return;
+                }
+                
+                console.log('Resultado da consulta:', row);
             
             if (!row) {
                 console.error('Funcionário não encontrado:', id_funcionario);
