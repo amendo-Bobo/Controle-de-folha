@@ -204,6 +204,9 @@ const db = new sqlite3.Database('./erp.db', (err) => {
 
 // GET funcionarios
 app.get('/api/funcionarios', async (req, res) => {
+    console.log('=== GET /api/funcionarios chamado ===');
+    console.log('useSupabase:', useSupabase);
+    
     if (useSupabase) {
         // Usar Supabase
         console.log('Buscando funcionários no Supabase...');
@@ -216,11 +219,14 @@ app.get('/api/funcionarios', async (req, res) => {
                 .select('*')
                 .eq('ativo', true);
             
+            console.log('Resposta Supabase - data:', data);
+            console.log('Resposta Supabase - error:', error);
+            
             if (error) {
                 console.log('Erro ao buscar no Supabase:', error);
                 supabaseError = error;
             } else {
-                console.log('Funcionários encontrados no Supabase:', data.length);
+                console.log('Funcionários encontrados no Supabase:', data?.length || 0);
                 supabaseData = data;
             }
         } catch (tryError) {
@@ -238,20 +244,26 @@ app.get('/api/funcionarios', async (req, res) => {
                     console.error('Erro no SQLite fallback:', err);
                     return res.status(500).json({ error: err.message });
                 }
-                console.log('Funcionários encontrados no SQLite fallback:', rows.length);
+                console.log('Funcionários encontrados no SQLite fallback:', rows?.length || 0);
+                console.log('Dados SQLite:', rows);
                 res.json(rows);
             });
         } else {
             // Supabase funcionou
+            console.log('Retornando dados do Supabase:', supabaseData);
             res.json(supabaseData);
         }
     } else {
         // Usar SQLite local
+        console.log('Usando SQLite local...');
         db.all('SELECT * FROM funcionarios WHERE ativo = 1', (err, rows) => {
             if (err) {
+                console.error('Erro no SQLite local:', err);
                 res.status(500).json({ error: err.message });
                 return;
             }
+            console.log('Funcionários encontrados no SQLite local:', rows?.length || 0);
+            console.log('Dados SQLite local:', rows);
             res.json(rows);
         });
     }
