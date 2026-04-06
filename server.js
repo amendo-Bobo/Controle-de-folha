@@ -24,6 +24,50 @@ const useSupabase = databaseUrl && databaseUrl.includes('supabase');
 console.log('DATABASE_URL:', databaseUrl ? 'Configurada' : 'Não configurada');
 console.log('Usando Supabase:', useSupabase);
 
+// Função para criar tabelas no Supabase (só se usar)
+async function createSupabaseTables() {
+    if (!useSupabase) {
+        console.log('Não está usando Supabase, pulando criação de tabelas');
+        return;
+    }
+    
+    console.log('Tentando criar tabelas no Supabase...');
+    
+    const { Client } = require('pg');
+    
+    try {
+        // Usar o endpoint correto do pooler
+        const poolerUrl = databaseUrl.replace(
+            'postgresql://postgres:tiVW2cmpeVStByLm@db.yuwddqxdnyjvilbmjooc.supabase.co:5432/postgres',
+            'postgresql://postgres.yuwddqxdnyjvilbmjooc:tiVW2cmpeVStByLm@aws-1-sa-east-1.pooler.supabase.com:6543/postgres'
+        );
+        
+        console.log('Tentando conectar com:', poolerUrl.split('@')[1]);
+        
+        const client = new Client({
+            connectionString: poolerUrl,
+            ssl: { rejectUnauthorized: false },
+            connectionTimeoutMillis: 10000,
+            query_timeout: 10000
+        });
+        
+        try {
+            await client.connect();
+            console.log('Conectado ao PostgreSQL com pooler!');
+        } catch (connError) {
+            console.log('Erro na conexão (timeout):', connError.message);
+            throw connError;
+        }
+        
+        console.log('Tabelas criadas com sucesso no Supabase!');
+        await client.end();
+        
+    } catch (error) {
+        console.log('Erro ao configurar Supabase:', error.message);
+        console.log('Detalhes do erro:', error);
+    }
+}
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -263,8 +307,12 @@ app.get('/api/vendas', (req, res) => {
 });
 
 // Iniciar servidor
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
     console.log(`Servidor ERP rodando em http://localhost:${PORT}`);
+    
+    // Criar tabelas no Supabase se estiver usando
+    await createSupabaseTables();
+    
     console.log('Endpoints disponíveis:');
     console.log('- GET /api/funcionarios');
     console.log('- POST /api/funcionarios');
