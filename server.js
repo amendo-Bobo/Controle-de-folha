@@ -18,7 +18,10 @@ const supabaseKey = process.env.SUPABASE_PASSWORD || 'tiVW2cmpeVStByLm';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Verificar se está usando Supabase
-const useSupabase = process.env.DATABASE_URL && process.env.DATABASE_URL.includes('supabase');
+const useSupabase = process.env.DATABASE_URL && 
+                   (process.env.DATABASE_URL.includes('supabase') || 
+                    process.env.DATABASE_URL.includes('yuwddqxdnyjvilbmjooc'));
+console.log('DATABASE_URL:', process.env.DATABASE_URL ? 'Configurada' : 'Não configurada');
 console.log('Usando Supabase:', useSupabase);
 
 // Função para criar tabelas no Supabase
