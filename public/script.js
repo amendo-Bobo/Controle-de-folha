@@ -375,11 +375,28 @@ async function salvarFuncionario() {
         });
         
         if (response.ok) {
-            bootstrap.Modal.getInstance(document.getElementById('modalFuncionario')).hide();
+            const data = await response.json();
+            console.log('Funcionário salvo:', data);
+            
+            // Fechar modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('modalFuncionario'));
+            if (modal) {
+                modal.hide();
+            }
+            
+            // Limpar formulário
+            document.getElementById('form-funcionario').reset();
+            
+            // Recarregar listas
             carregarFuncionarios();
             carregarDashboard();
+            
+            // Mostrar sucesso
+            alert('Funcionário salvo com sucesso!');
         } else {
-            alert('Erro ao salvar funcionário!');
+            const errorData = await response.text();
+            console.error('Erro response:', response.status, errorData);
+            alert('Erro ao salvar funcionário: ' + errorData);
         }
         
     } catch (error) {
