@@ -2017,8 +2017,8 @@ app.post('/api/gerar-folha/:mes', async (req, res) => {
                         // Inserir nova folha
                         await client.query(
                             `INSERT INTO folha_pagamento 
-                             (id_funcionario, mes_referencia, salario_base, comissoes, bonus, total, detalhe_comissoes) 
-                             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+                             (id_funcionario, mes_referencia, salario_base, comissoes, bonus, total, detalhe_comissoes, data_geracao) 
+                             VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_DATE)`,
                             [func.id, mes, salarioBase, comissoes, bonus, total, detalheComissoes]
                         );
                         console.log('Folha inserida para:', func.nome);
