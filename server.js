@@ -1943,14 +1943,14 @@ app.post('/api/gerar-folha/:mes', async (req, res) => {
                         
                         // Detalhamento das comissões
                         detalheComissoes = JSON.stringify({
-                            qtd_grande_sem_desconto,
-                            valor_grande_sem_desconto,
-                            qtd_grande_com_desconto,
-                            valor_grande_com_desconto,
-                            qtd_pequena_sem_desconto,
-                            valor_pequena_sem_desconto,
-                            qtd_pequena_com_desconto,
-                            valor_pequena_com_desconto
+                            qtd_grande_sem_desconto: qtdGrandeSemDesconto,
+                            valor_grande_sem_desconto: valorGrandeSemDesconto,
+                            qtd_grande_com_desconto: qtdGrandeComDesconto,
+                            valor_grande_com_desconto: valorGrandeComDesconto,
+                            qtd_pequena_sem_desconto: qtdPequenaSemDesconto,
+                            valor_pequena_sem_desconto: valorPequenaSemDesconto,
+                            qtd_pequena_com_desconto: qtdPequenaComDesconto,
+                            valor_pequena_com_desconto: valorPequenaComDesconto
                         });
                         
                     } else if (func.tipo === 'producao') {
