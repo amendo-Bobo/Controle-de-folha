@@ -95,10 +95,33 @@ async function createSupabaseTables() {
                     id_funcionario BIGINT NOT NULL REFERENCES funcionarios(id),
                     tipo_maquina TEXT NOT NULL CHECK(tipo_maquina IN ('grande', 'pequena')),
                     quantidade_maquinas INTEGER NOT NULL,
-                    com_desconto BOOLEAN DEFAULT true,
-                    data_venda DATE NOT NULL
+                    com_desconto BOOLEAN DEFAULT false,
+                    data_venda DATE NOT NULL,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW()
                 )
             `);
+            
+            // Remover constraint antiga e adicionar nova (se necessário)
+            try {
+                await client.query(`
+                    ALTER TABLE vendas DROP CONSTRAINT IF EXISTS vendas_tipo_maquina_check
+                `);
+                console.log('Constraint antiga removida');
+            } catch (error) {
+                console.log('Constraint não existe ou erro ao remover:', error.message);
+            }
+            
+            // Adicionar constraint correta
+            try {
+                await client.query(`
+                    ALTER TABLE vendas ADD CONSTRAINT vendas_tipo_maquina_check 
+                    CHECK (tipo_maquina IN ('grande', 'pequena'))
+                `);
+                console.log('Constraint correta adicionada');
+            } catch (error) {
+                console.log('Constraint já existe ou erro ao adicionar:', error.message);
+            }
             
         } catch (connError) {
             console.log('Erro na conexão (timeout):', connError.message);
