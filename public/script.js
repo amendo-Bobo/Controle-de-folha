@@ -1046,8 +1046,7 @@ async function exportarPDF() {
         const producao = producaoResponse.filter(p => p.data_producao.startsWith(mes));
         
         // Criar PDF com margens ajustadas
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF({
+        const doc = new window.jspdf.jsPDF({
             orientation: 'portrait',
             unit: 'mm',
             format: 'a4'
