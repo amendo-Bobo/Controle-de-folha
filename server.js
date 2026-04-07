@@ -123,6 +123,22 @@ async function createSupabaseTables() {
                 console.log('Constraint já existe ou erro ao adicionar:', error.message);
             }
             
+            // Criar tabela folha_pagamento
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS folha_pagamento (
+                    id BIGSERIAL PRIMARY KEY,
+                    id_funcionario BIGINT NOT NULL REFERENCES funcionarios(id),
+                    mes_referencia TEXT NOT NULL,
+                    salario_base REAL NOT NULL,
+                    comissoes REAL NOT NULL,
+                    bonus REAL NOT NULL,
+                    total REAL NOT NULL,
+                    data_geracao DATE DEFAULT CURRENT_DATE,
+                    detalhe_comissoes TEXT
+                )
+            `);
+            console.log('Tabela folha_pagamento criada no PostgreSQL');
+            
         } catch (connError) {
             console.log('Erro na conexão (timeout):', connError.message);
             throw connError;
