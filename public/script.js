@@ -10,7 +10,73 @@ document.addEventListener('DOMContentLoaded', function() {
     const hoje = new Date().toISOString().split('T')[0];
     document.getElementById('venda-data').value = hoje;
     document.getElementById('producao-data').value = hoje;
+    
+    // Setup do formulário de funcionários
+    setupFuncionarioForm();
 });
+
+function setupFuncionarioForm() {
+    const tipoSelect = document.getElementById('func-tipo');
+    
+    if (tipoSelect) {
+        // Adicionar listener para mudança de tipo
+        tipoSelect.addEventListener('change', function() {
+            toggleCamposFuncionario(this.value);
+        });
+        
+        // Configurar estado inicial
+        toggleCamposFuncionario(tipoSelect.value);
+    }
+}
+
+function toggleCamposFuncionario(tipo) {
+    // Campos para VENDEDORA
+    const camposVendedora = [
+        'campo-comissao-grande',
+        'campo-comissao-pequena', 
+        'campo-comissao-extra',
+        'campo-meta',
+        'campo-bonus-meta'
+    ];
+    
+    // Campos para PRODUÇÃO
+    const camposProducao = [
+        'campo-salario',
+        'campo-comissao-producao'
+    ];
+    
+    if (tipo === 'vendedora') {
+        // Mostrar campos de vendedora, esconder de produção
+        camposVendedora.forEach(id => {
+            const campo = document.getElementById(id);
+            if (campo) campo.style.display = 'block';
+        });
+        
+        camposProducao.forEach(id => {
+            const campo = document.getElementById(id);
+            if (campo) campo.style.display = 'none';
+        });
+        
+    } else if (tipo === 'producao') {
+        // Esconder campos de vendedora, mostrar de produção
+        camposVendedora.forEach(id => {
+            const campo = document.getElementById(id);
+            if (campo) campo.style.display = 'none';
+        });
+        
+        camposProducao.forEach(id => {
+            const campo = document.getElementById(id);
+            if (campo) campo.style.display = 'block';
+        });
+        
+    } else {
+        // Tipo não selecionado - esconder tudo exceto nome e tipo
+        [...camposVendedora, ...camposProducao].forEach(id => {
+            const campo = document.getElementById(id);
+            if (campo) campo.style.display = 'none';
+        });
+    }
+}
 
 function setupNavigation() {
     document.querySelectorAll('.sidebar .nav-link').forEach(link => {
