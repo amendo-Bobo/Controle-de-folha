@@ -1499,7 +1499,7 @@ app.get('/api/folha-pagamento', async (req, res) => {
             await client.connect();
             
             const result = await client.query(`
-                SELECT fp.*, f.nome as nome_funcionario 
+                SELECT fp.*, f.nome as nome_funcionario, f.tipo 
                 FROM folha_pagamento fp 
                 LEFT JOIN funcionarios f ON fp.id_funcionario = f.id
                 ORDER BY fp.mes_referencia DESC, f.nome ASC
@@ -1586,7 +1586,7 @@ app.get('/api/folha-pagamento/:mes', async (req, res) => {
             await client.connect();
             
             const result = await client.query(`
-                SELECT fp.*, f.nome as nome_funcionario 
+                SELECT fp.*, f.nome as nome_funcionario, f.tipo 
                 FROM folha_pagamento fp 
                 LEFT JOIN funcionarios f ON fp.id_funcionario = f.id
                 WHERE fp.mes_referencia = $1
