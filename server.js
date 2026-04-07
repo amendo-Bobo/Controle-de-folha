@@ -2033,7 +2033,8 @@ app.post('/api/gerar-folha/:mes', async (req, res) => {
                         comissoes: comissoes,
                         bonus: bonus,
                         total: total,
-                        detalhe_comissoes: detalheComissoes
+                        detalhe_comissoes: detalheComissoes,
+                        data_geracao: new Date().toISOString().split('T')[0]
                     });
                 }
                 
