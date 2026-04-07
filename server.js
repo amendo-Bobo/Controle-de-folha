@@ -1982,15 +1982,27 @@ app.post('/api/gerar-folha/:mes', async (req, res) => {
                         
                     } else if (func.tipo === 'producao') {
                         // Buscar produção do mês para este funcionário
+                        console.log('Buscando produção para', func.nome, 'no mês', mes);
                         const prodResult = await client.query(
-                            `SELECT SUM(maquinas_produzidas) as total 
+                            `SELECT SUM(maquinas_produzidas) as total, COUNT(*) as registros
                              FROM producao 
                              WHERE id_funcionario = $1 AND TO_CHAR(data_producao, 'YYYY-MM') = $2`,
                             [func.id, mes]
                         );
                         
                         const totalProduzido = prodResult.rows[0]?.total || 0;
-                        console.log('Produção encontrada para', func.nome, ':', totalProduzido);
+                        const registrosEncontrados = prodResult.rows[0]?.registros || 0;
+                        console.log('Produção encontrada para', func.nome, ':', totalProduzido, 'registros:', registrosEncontrados);
+                        
+                        // Debug: mostrar todas as produções deste funcionário
+                        const allProdResult = await client.query(
+                            `SELECT maquinas_produzidas, data_producao, TO_CHAR(data_producao, 'YYYY-MM') as mes_formatado
+                             FROM producao 
+                             WHERE id_funcionario = $1
+                             ORDER BY data_producao DESC`,
+                            [func.id]
+                        );
+                        console.log('Todas as produções de', func.nome, ':', allProdResult.rows);
                         
                         salarioBase = func.salario_base;
                         comissoes = totalProduzido * func.comissao_maquina_producao;
