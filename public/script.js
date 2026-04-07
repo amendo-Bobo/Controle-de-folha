@@ -1246,7 +1246,7 @@ async function exportarPDF() {
                 doc.setFontSize(8);
                 xPos = marginLeft;
                 
-                doc.text(funcionario.nome.substring(0, 12), xPos, yPosition);
+                doc.text(funcionario.nome_funcionario.substring(0, 12), xPos, yPosition);
                 xPos += prodColWidths[0];
                 doc.text(maquinasProduzidas.toString(), xPos, yPosition);
                 xPos += prodColWidths[1];
