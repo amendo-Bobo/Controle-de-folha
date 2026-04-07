@@ -415,6 +415,187 @@ app.post('/api/funcionarios', async (req, res) => {
     }
 });
 
+// PUT funcionarios (editar)
+app.put('/api/funcionarios/:id', async (req, res) => {
+    console.log('=== PUT /api/funcionarios/:id ===');
+    console.log('ID:', req.params.id);
+    console.log('Dados recebidos:', req.body);
+    
+    try {
+        const { id } = req.params;
+        const { 
+            nome, 
+            tipo, 
+            comissao_maquina_grande, 
+            comissao_maquina_pequena, 
+            comissao_extra_desconto,
+            salario_base, 
+            comissao_maquina_producao,
+            meta_maquinas,
+            bonus_meta
+        } = req.body;
+        
+        // Validação básica
+        if (!nome || !tipo) {
+            return res.status(400).json({ error: 'Nome e tipo são obrigatórios' });
+        }
+        
+        if (useSupabase) {
+            // Usar PostgreSQL direto
+            console.log('Atualizando funcionário no PostgreSQL...');
+            const { Client } = require('pg');
+            
+            try {
+                const poolerUrl = databaseUrl.replace(
+                    'postgresql://postgres:tiVW2cmpeVStByLm@db.yuwddqxdnyjvilbmjooc.supabase.co:5432/postgres',
+                    'postgresql://postgres.yuwddqxdnyjvilbmjooc:tiVW2cmpeVStByLm@aws-1-sa-east-1.pooler.supabase.com:6543/postgres'
+                );
+                
+                const client = new Client({
+                    connectionString: poolerUrl,
+                    ssl: { rejectUnauthorized: false },
+                    connectionTimeoutMillis: 10000,
+                    query_timeout: 10000
+                });
+                
+                await client.connect();
+                
+                const result = await client.query(
+                    `UPDATE funcionarios SET 
+                     nome = $1, tipo = $2, comissao_maquina_grande = $3, comissao_maquina_pequena = $4,
+                     comissao_extra_desconto = $5, salario_base = $6, comissao_maquina_producao = $7,
+                     meta_maquinas = $8, bonus_meta = $9, updated_at = NOW()
+                     WHERE id = $10 RETURNING *`,
+                    [
+                        nome, 
+                        tipo, 
+                        Number(comissao_maquina_grande) || 450, 
+                        Number(comissao_maquina_pequena) || 250, 
+                        Number(comissao_extra_desconto) || 100,
+                        Number(salario_base) || 0, 
+                        Number(comissao_maquina_producao) || 100,
+                        Number(meta_maquinas) || 10,
+                        Number(bonus_meta) || 1000,
+                        id
+                    ]
+                );
+                
+                console.log('Funcionário atualizado no PostgreSQL:', result.rows[0]);
+                await client.end();
+                res.json(result.rows[0]);
+                
+            } catch (pgError) {
+                console.log('PostgreSQL falhou, usando SQLite fallback:', pgError.message);
+                res.status(500).json({ error: pgError.message });
+            }
+        } else {
+            // Usar SQLite local
+            const sql = `UPDATE funcionarios SET 
+                nome = ?, tipo = ?, comissao_maquina_grande = ?, comissao_maquina_pequena = ?,
+                comissao_extra_desconto = ?, salario_base = ?, comissao_maquina_producao = ?,
+                meta_maquinas = ?, bonus_meta = ?
+                WHERE id = ?`;
+            
+            const params = [
+                nome, 
+                tipo, 
+                Number(comissao_maquina_grande) || 450, 
+                Number(comissao_maquina_pequena) || 250, 
+                Number(comissao_extra_desconto) || 100,
+                Number(salario_base) || 0, 
+                Number(comissao_maquina_producao) || 100,
+                Number(meta_maquinas) || 10,
+                Number(bonus_meta) || 1000,
+                id
+            ];
+            
+            db.run(sql, params, function(err) {
+                if (err) {
+                    console.error('Erro ao atualizar:', err);
+                    return res.status(500).json({ error: err.message });
+                }
+                console.log('Funcionário atualizado com ID:', id);
+                res.json({ 
+                    id: Number(id), 
+                    nome, 
+                    tipo, 
+                    comissao_maquina_grande: Number(comissao_maquina_grande) || 450, 
+                    comissao_maquina_pequena: Number(comissao_maquina_pequena) || 250, 
+                    comissao_extra_desconto: Number(comissao_extra_desconto) || 100,
+                    salario_base: Number(salario_base) || 0, 
+                    comissao_maquina_producao: Number(comissao_maquina_producao) || 100,
+                    meta_maquinas: Number(meta_maquinas) || 10,
+                    bonus_meta: Number(bonus_meta) || 1000,
+                    ativo: true
+                });
+            });
+        }
+    } catch (error) {
+        console.error('Erro geral:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// PUT funcionarios/:id/desativar
+app.put('/api/funcionarios/:id/desativar', async (req, res) => {
+    console.log('=== PUT /api/funcionarios/:id/desativar ===');
+    console.log('ID:', req.params.id);
+    
+    try {
+        const { id } = req.params;
+        
+        if (useSupabase) {
+            // Usar PostgreSQL direto
+            console.log('Desativando funcionário no PostgreSQL...');
+            const { Client } = require('pg');
+            
+            try {
+                const poolerUrl = databaseUrl.replace(
+                    'postgresql://postgres:tiVW2cmpeVStByLm@db.yuwddqxdnyjvilbmjooc.supabase.co:5432/postgres',
+                    'postgresql://postgres.yuwddqxdnyjvilbmjooc:tiVW2cmpeVStByLm@aws-1-sa-east-1.pooler.supabase.com:6543/postgres'
+                );
+                
+                const client = new Client({
+                    connectionString: poolerUrl,
+                    ssl: { rejectUnauthorized: false },
+                    connectionTimeoutMillis: 10000,
+                    query_timeout: 10000
+                });
+                
+                await client.connect();
+                
+                const result = await client.query(
+                    'UPDATE funcionarios SET ativo = false, updated_at = NOW() WHERE id = $1 RETURNING *',
+                    [id]
+                );
+                
+                console.log('Funcionário desativado no PostgreSQL:', result.rows[0]);
+                await client.end();
+                res.json({ message: 'Funcionário desativado com sucesso!' });
+                
+            } catch (pgError) {
+                console.log('PostgreSQL falhou, usando SQLite fallback:', pgError.message);
+                res.status(500).json({ error: pgError.message });
+            }
+        } else {
+            // Usar SQLite local
+            const sql = 'UPDATE funcionarios SET ativo = 0 WHERE id = ?';
+            
+            db.run(sql, [id], function(err) {
+                if (err) {
+                    console.error('Erro ao desativar:', err);
+                    return res.status(500).json({ error: err.message });
+                }
+                console.log('Funcionário desativado com ID:', id);
+                res.json({ message: 'Funcionário desativado com sucesso!' });
+            });
+        }
+    } catch (error) {
+        console.error('Erro geral:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // POST vendas
 app.post('/api/vendas', (req, res) => {
     console.log('=== POST /api/vendas ===');
