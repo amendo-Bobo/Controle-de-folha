@@ -1844,6 +1844,196 @@ app.delete('/api/folha-pagamento/:mes', async (req, res) => {
     }
 });
 
+// POST gerar folha de pagamento para um mês
+app.post('/api/gerar-folha/:mes', async (req, res) => {
+    console.log('=== POST /api/gerar-folha/:mes ===');
+    console.log('Mês:', req.params.mes);
+    
+    try {
+        const { mes } = req.params;
+        
+        if (!mes || !/^\d{4}-\d{2}$/.test(mes)) {
+            return res.status(400).json({ error: 'Formato de mês inválido. Use YYYY-MM' });
+        }
+        
+        if (useSupabase) {
+            // Usar PostgreSQL direto
+            console.log('Gerando folha de pagamento no PostgreSQL...');
+            const { Client } = require('pg');
+            
+            try {
+                // Usar o endpoint correto do pooler
+                const poolerUrl = databaseUrl.replace(
+                    'postgresql://postgres:tiVW2cmpeVStByLm@db.yuwddqxdnyjvilbmjooc.supabase.co:5432/postgres',
+                    'postgresql://postgres.yuwddqxdnyjvilbmjooc:tiVW2cmpeVStByLm@aws-1-sa-east-1.pooler.supabase.com:6543/postgres'
+                );
+                
+                const client = new Client({
+                    connectionString: poolerUrl,
+                    ssl: { rejectUnauthorized: false },
+                    connectionTimeoutMillis: 10000,
+                    query_timeout: 10000
+                });
+                
+                await client.connect();
+                
+                // Buscar todos os funcionários ativos
+                const funcResult = await client.query('SELECT * FROM funcionarios WHERE ativo = true ORDER BY nome');
+                const funcionarios = funcResult.rows;
+                
+                console.log('Funcionários ativos encontrados:', funcionarios.length);
+                
+                // Para cada funcionário, calcular a folha de pagamento
+                const folhaGerada = [];
+                
+                for (const func of funcionarios) {
+                    console.log('Calculando folha para:', func.nome, 'Tipo:', func.tipo);
+                    
+                    let salarioBase = 0;
+                    let comissoes = 0;
+                    let bonus = 0;
+                    let detalheComissoes = null;
+                    
+                    if (func.tipo === 'vendedora') {
+                        // Buscar vendas do mês para esta vendedora
+                        const vendasResult = await client.query(
+                            `SELECT * FROM vendas 
+                             WHERE id_funcionario = $1 AND DATE_TRUNC('month', data_venda) = $2::date`,
+                            [func.id, `${mes}-01`]
+                        );
+                        const vendas = vendasResult.rows;
+                        
+                        console.log('Vendas encontradas para', func.nome, ':', vendas.length);
+                        
+                        // Calcular comissões
+                        let qtdGrandeSemDesconto = 0;
+                        let qtdGrandeComDesconto = 0;
+                        let qtdPequenaSemDesconto = 0;
+                        let qtdPequenaComDesconto = 0;
+                        
+                        for (const venda of vendas) {
+                            if (venda.tipo_maquina === 'grande') {
+                                if (venda.com_desconto) {
+                                    qtdGrandeComDesconto += venda.quantidade_maquinas;
+                                } else {
+                                    qtdGrandeSemDesconto += venda.quantidade_maquinas;
+                                }
+                            } else if (venda.tipo_maquina === 'pequena') {
+                                if (venda.com_desconto) {
+                                    qtdPequenaComDesconto += venda.quantidade_maquinas;
+                                } else {
+                                    qtdPequenaSemDesconto += venda.quantidade_maquinas;
+                                }
+                            }
+                        }
+                        
+                        // Calcular valores
+                        const valorGrandeSemDesconto = qtdGrandeSemDesconto * func.comissao_maquina_grande;
+                        const valorGrandeComDesconto = qtdGrandeComDesconto * (func.comissao_maquina_grande - func.comissao_extra_desconto);
+                        const valorPequenaSemDesconto = qtdPequenaSemDesconto * func.comissao_maquina_pequena;
+                        const valorPequenaComDesconto = qtdPequenaComDesconto * (func.comissao_maquina_pequena - func.comissao_extra_desconto);
+                        
+                        comissoes = valorGrandeSemDesconto + valorGrandeComDesconto + valorPequenaSemDesconto + valorPequenaComDesconto;
+                        
+                        // Verificar meta
+                        const totalMaquinas = qtdGrandeSemDesconto + qtdGrandeComDesconto + qtdPequenaSemDesconto + qtdPequenaComDesconto;
+                        if (totalMaquinas >= func.meta_maquinas) {
+                            bonus = func.bonus_meta;
+                        }
+                        
+                        // Detalhamento das comissões
+                        detalheComissoes = JSON.stringify({
+                            qtd_grande_sem_desconto,
+                            valor_grande_sem_desconto,
+                            qtd_grande_com_desconto,
+                            valor_grande_com_desconto,
+                            qtd_pequena_sem_desconto,
+                            valor_pequena_sem_desconto,
+                            qtd_pequena_com_desconto,
+                            valor_pequena_com_desconto
+                        });
+                        
+                    } else if (func.tipo === 'producao') {
+                        // Buscar produção do mês para este funcionário
+                        const prodResult = await client.query(
+                            `SELECT SUM(maquinas_produzidas) as total 
+                             FROM producao 
+                             WHERE id_funcionario = $1 AND DATE_TRUNC('month', data_producao) = $2::date`,
+                            [func.id, `${mes}-01`]
+                        );
+                        
+                        const totalProduzido = prodResult.rows[0]?.total || 0;
+                        console.log('Produção encontrada para', func.nome, ':', totalProduzido);
+                        
+                        salarioBase = func.salario_base;
+                        comissoes = totalProduzido * func.comissao_maquina_producao;
+                    }
+                    
+                    const total = salarioBase + comissoes + bonus;
+                    
+                    // Verificar se já existe folha para este funcionário e mês
+                    const existeFolha = await client.query(
+                        'SELECT id FROM folha_pagamento WHERE id_funcionario = $1 AND mes_referencia = $2',
+                        [func.id, mes]
+                    );
+                    
+                    if (existeFolha.rows.length > 0) {
+                        // Atualizar folha existente
+                        await client.query(
+                            `UPDATE folha_pagamento SET 
+                             salario_base = $1, comissoes = $2, bonus = $3, total = $4, detalhe_comissoes = $5
+                             WHERE id_funcionario = $6 AND mes_referencia = $7`,
+                            [salarioBase, comissoes, bonus, total, detalheComissoes, func.id, mes]
+                        );
+                        console.log('Folha atualizada para:', func.nome);
+                    } else {
+                        // Inserir nova folha
+                        await client.query(
+                            `INSERT INTO folha_pagamento 
+                             (id_funcionario, mes_referencia, salario_base, comissoes, bonus, total, detalhe_comissoes) 
+                             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+                            [func.id, mes, salarioBase, comissoes, bonus, total, detalheComissoes]
+                        );
+                        console.log('Folha inserida para:', func.nome);
+                    }
+                    
+                    folhaGerada.push({
+                        id_funcionario: func.id,
+                        nome_funcionario: func.nome,
+                        tipo: func.tipo,
+                        mes_referencia: mes,
+                        salario_base: salarioBase,
+                        comissoes: comissoes,
+                        bonus: bonus,
+                        total: total,
+                        detalhe_comissoes: detalheComissoes
+                    });
+                }
+                
+                await client.end();
+                
+                console.log('Folha de pagamento gerada com sucesso!');
+                res.json({ 
+                    message: 'Folha de pagamento gerada com sucesso!',
+                    folha: folhaGerada,
+                    total_funcionarios: folhaGerada.length
+                });
+                
+            } catch (pgError) {
+                console.log('PostgreSQL falhou:', pgError.message);
+                res.status(500).json({ error: pgError.message });
+            }
+        } else {
+            // Usar SQLite local
+            console.log('Usando SQLite local para gerar folha...');
+            res.status(501).json({ error: 'Geração de folha não implementada para SQLite local' });
+        }
+    } catch (error) {
+        console.error('Erro geral:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Iniciar servidor
 app.listen(PORT, async () => {
     console.log(`Servidor ERP rodando em http://localhost:${PORT}`);
