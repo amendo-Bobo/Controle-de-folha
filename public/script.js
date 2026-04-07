@@ -661,7 +661,7 @@ async function carregarFolhaPagamento() {
             
             return `
                 <tr>
-                    <td>${f.nome}</td>
+                    <td>${f.nome_funcionario}</td>
                     <td>R$ ${f.comissoes.toFixed(2)}</td>
                     <td><small>${detalheComissoes}</small></td>
                     <td>R$ ${f.bonus.toFixed(2)}</td>
@@ -680,7 +680,7 @@ async function carregarFolhaPagamento() {
             totalProducao += f.total;
             return `
                 <tr>
-                    <td>${f.nome}</td>
+                    <td>${f.nome_funcionario}</td>
                     <td>R$ ${f.salario_base.toFixed(2)}</td>
                     <td>R$ ${f.comissoes.toFixed(2)}</td>
                     <td><strong>R$ ${f.total.toFixed(2)}</strong></td>
