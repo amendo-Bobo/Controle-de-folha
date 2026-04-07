@@ -1021,36 +1021,52 @@ function resetModalProducao() {
 async function exportarPDF() {
     const mes = document.getElementById('mes-folha').value;
     
+    console.log('=== exportarPDF() chamada ===');
+    console.log('Mês selecionado:', mes);
+    
     if (!mes) {
         alert('Selecione um mês para exportar!');
         return;
     }
     
     try {
+        console.log('Carregando dados da folha...');
         // Carregar dados da folha
         const response = await fetch(`${API_BASE}/api/folha-pagamento/${mes}`);
         const folha = await response.json();
+        
+        console.log('Folha carregada:', folha.length, 'registros');
         
         if (folha.length === 0) {
             alert('Não há dados de folha para este mês!');
             return;
         }
         
+        console.log('Carregando dados detalhados de vendas e produção...');
         // Carregar dados detalhados de vendas e produção
         const [vendasResponse, producaoResponse] = await Promise.all([
             fetch(`${API_BASE}/api/vendas`).then(r => r.json()),
             fetch(`${API_BASE}/api/producao`).then(r => r.json())
         ]);
         
+        console.log('Vendas carregadas:', vendasResponse.length);
+        console.log('Produção carregada:', producaoResponse.length);
+        
         const vendas = vendasResponse.filter(v => v.data_venda.startsWith(mes));
         const producao = producaoResponse.filter(p => p.data_producao.startsWith(mes));
         
+        console.log('Vendas filtradas para o mês:', vendas.length);
+        console.log('Produção filtrada para o mês:', producao.length);
+        
+        console.log('Criando PDF...');
         // Criar PDF com margens ajustadas
         const doc = new window.jspdf.jsPDF({
             orientation: 'portrait',
             unit: 'mm',
             format: 'a4'
         });
+        
+        console.log('PDF criado, adicionando conteúdo...');
         
         // Definir margens menores
         const marginLeft = 10;
