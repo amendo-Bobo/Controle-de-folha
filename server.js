@@ -753,22 +753,673 @@ app.post('/api/vendas', async (req, res) => {
 });
 
 // GET vendas
-app.get('/api/vendas', (req, res) => {
-    const query = `
-        SELECT v.*, f.nome as nome_funcionario 
-        FROM vendas v 
-        JOIN funcionarios f ON v.id_funcionario = f.id 
-        WHERE f.ativo = 1
-        ORDER BY v.data_venda DESC
-    `;
+app.get('/api/vendas', async (req, res) => {
+    console.log('=== GET /api/vendas chamado ===');
+    console.log('useSupabase:', useSupabase);
     
-    db.all(query, (err, rows) => {
-        if (err) {
-            res.status(500).json({ error: err.message });
-            return;
+    if (useSupabase) {
+        // Usar PostgreSQL direto
+        console.log('Buscando vendas no PostgreSQL...');
+        const { Client } = require('pg');
+        
+        try {
+            // Usar o endpoint correto do pooler
+            const poolerUrl = databaseUrl.replace(
+                'postgresql://postgres:tiVW2cmpeVStByLm@db.yuwddqxdnyjvilbmjooc.supabase.co:5432/postgres',
+                'postgresql://postgres.yuwddqxdnyjvilbmjooc:tiVW2cmpeVStByLm@aws-1-sa-east-1.pooler.supabase.com:6543/postgres'
+            );
+            
+            const client = new Client({
+                connectionString: poolerUrl,
+                ssl: { rejectUnauthorized: false },
+                connectionTimeoutMillis: 10000,
+                query_timeout: 10000
+            });
+            
+            await client.connect();
+            
+            const result = await client.query(`
+                SELECT v.*, f.nome as nome_funcionario 
+                FROM vendas v 
+                LEFT JOIN funcionarios f ON v.id_funcionario = f.id
+                ORDER BY v.data_venda DESC
+            `);
+            
+            console.log('Vendas encontradas no PostgreSQL:', result.rows.length);
+            console.log('Dados:', result.rows);
+            
+            await client.end();
+            
+            res.json(result.rows);
+            
+        } catch (error) {
+            console.log('Erro no PostgreSQL, usando SQLite fallback:', error.message);
+            
+            // Fallback para SQLite
+            const query = `
+                SELECT v.*, f.nome as nome_funcionario 
+                FROM vendas v 
+                LEFT JOIN funcionarios f ON v.id_funcionario = f.id
+                ORDER BY v.data_venda DESC
+            `;
+            
+            db.all(query, (err, rows) => {
+                if (err) {
+                    console.error('Erro no SQLite fallback:', err);
+                    return res.status(500).json({ error: err.message });
+                }
+                console.log('Vendas encontradas no SQLite fallback:', rows?.length || 0);
+                console.log('Dados SQLite:', rows);
+                res.json(rows);
+            });
         }
-        res.json(rows);
-    });
+    } else {
+        // Usar SQLite local
+        console.log('Usando SQLite local para vendas...');
+        const query = `
+            SELECT v.*, f.nome as nome_funcionario 
+            FROM vendas v 
+            LEFT JOIN funcionarios f ON v.id_funcionario = f.id
+            ORDER BY v.data_venda DESC
+        `;
+        
+        db.all(query, (err, rows) => {
+            if (err) {
+                console.error('Erro no SQLite local:', err);
+                res.status(500).json({ error: err.message });
+                return;
+            }
+            console.log('Vendas encontradas no SQLite local:', rows?.length || 0);
+            console.log('Dados SQLite local:', rows);
+            res.json(rows);
+        });
+    }
+});
+
+// PUT vendas (editar)
+app.put('/api/vendas/:id', async (req, res) => {
+    console.log('=== PUT /api/vendas/:id ===');
+    console.log('ID:', req.params.id);
+    console.log('Dados recebidos:', req.body);
+    
+    try {
+        const { id } = req.params;
+        const { id_funcionario, tipo_maquina, quantidade_maquinas, com_desconto, data_venda } = req.body;
+        
+        // Validação básica
+        if (!id_funcionario || !tipo_maquina || !quantidade_maquinas || !data_venda) {
+            return res.status(400).json({ error: 'Todos os campos são obrigatórios' });
+        }
+        
+        if (useSupabase) {
+            // Usar PostgreSQL direto
+            console.log('Atualizando venda no PostgreSQL...');
+            const { Client } = require('pg');
+            
+            try {
+                const poolerUrl = databaseUrl.replace(
+                    'postgresql://postgres:tiVW2cmpeVStByLm@db.yuwddqxdnyjvilbmjooc.supabase.co:5432/postgres',
+                    'postgresql://postgres.yuwddqxdnyjvilbmjooc:tiVW2cmpeVStByLm@aws-1-sa-east-1.pooler.supabase.com:6543/postgres'
+                );
+                
+                const client = new Client({
+                    connectionString: poolerUrl,
+                    ssl: { rejectUnauthorized: false },
+                    connectionTimeoutMillis: 10000,
+                    query_timeout: 10000
+                });
+                
+                await client.connect();
+                
+                // Verificar se funcionário existe e está ativo
+                const funcResult = await client.query('SELECT id, nome, ativo FROM funcionarios WHERE id = $1', [id_funcionario]);
+                
+                if (funcResult.rows.length === 0) {
+                    await client.end();
+                    return res.status(400).json({ error: 'Funcionário não encontrado' });
+                }
+                
+                if (!funcResult.rows[0].ativo) {
+                    await client.end();
+                    return res.status(400).json({ error: 'Funcionário está inativo' });
+                }
+                
+                // Atualizar venda
+                const result = await client.query(
+                    `UPDATE vendas SET 
+                     id_funcionario = $1, tipo_maquina = $2, quantidade_maquinas = $3, 
+                     com_desconto = $4, data_venda = $5, updated_at = NOW()
+                     WHERE id = $6 RETURNING *`,
+                    [id_funcionario, tipo_maquina, quantidade_maquinas, com_desconto, data_venda, id]
+                );
+                
+                console.log('Venda atualizada no PostgreSQL:', result.rows[0]);
+                await client.end();
+                
+                // Adicionar nome do funcionário na resposta
+                const vendaResponse = {
+                    ...result.rows[0],
+                    nome_funcionario: funcResult.rows[0].nome
+                };
+                
+                res.json(vendaResponse);
+                
+            } catch (pgError) {
+                console.log('PostgreSQL falhou:', pgError.message);
+                res.status(500).json({ error: pgError.message });
+            }
+        } else {
+            // Usar SQLite local
+            const sql = `UPDATE vendas SET 
+                id_funcionario = ?, tipo_maquina = ?, quantidade_maquinas = ?, 
+                com_desconto = ?, data_venda = ?
+                WHERE id = ?`;
+            
+            const params = [id_funcionario, tipo_maquina, quantidade_maquinas, com_desconto, data_venda, id];
+            
+            db.run(sql, params, function(err) {
+                if (err) {
+                    console.error('Erro ao atualizar venda:', err);
+                    return res.status(500).json({ error: err.message });
+                }
+                
+                // Buscar nome do funcionário
+                db.get('SELECT nome FROM funcionarios WHERE id = ?', [id_funcionario], (err, row) => {
+                    if (err) {
+                        console.error('Erro ao buscar funcionário:', err);
+                        return res.status(500).json({ error: err.message });
+                    }
+                    
+                    res.json({ 
+                        id: Number(id), 
+                        id_funcionario, 
+                        tipo_maquina, 
+                        quantidade_maquinas, 
+                        com_desconto, 
+                        data_venda,
+                        nome_funcionario: row ? row.nome : 'Desconhecido'
+                    });
+                });
+            });
+        }
+    } catch (error) {
+        console.error('Erro geral:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// DELETE vendas
+app.delete('/api/vendas/:id', async (req, res) => {
+    console.log('=== DELETE /api/vendas/:id ===');
+    console.log('ID:', req.params.id);
+    
+    try {
+        const { id } = req.params;
+        
+        if (useSupabase) {
+            // Usar PostgreSQL direto
+            console.log('Excluindo venda no PostgreSQL...');
+            const { Client } = require('pg');
+            
+            try {
+                const poolerUrl = databaseUrl.replace(
+                    'postgresql://postgres:tiVW2cmpeVStByLm@db.yuwddqxdnyjvilbmjooc.supabase.co:5432/postgres',
+                    'postgresql://postgres.yuwddqxdnyjvilbmjooc:tiVW2cmpeVStByLm@aws-1-sa-east-1.pooler.supabase.com:6543/postgres'
+                );
+                
+                const client = new Client({
+                    connectionString: poolerUrl,
+                    ssl: { rejectUnauthorized: false },
+                    connectionTimeoutMillis: 10000,
+                    query_timeout: 10000
+                });
+                
+                await client.connect();
+                
+                const result = await client.query('DELETE FROM vendas WHERE id = $1 RETURNING *', [id]);
+                
+                console.log('Venda excluída no PostgreSQL:', result.rows[0]);
+                await client.end();
+                
+                res.json({ message: 'Venda excluída com sucesso!' });
+                
+            } catch (pgError) {
+                console.log('PostgreSQL falhou, usando SQLite fallback:', pgError.message);
+                
+                // Fallback para SQLite
+                db.run('DELETE FROM vendas WHERE id = ?', [id], function(err) {
+                    if (err) {
+                        console.error('Erro ao excluir venda:', err);
+                        return res.status(500).json({ error: err.message });
+                    }
+                    console.log('Venda excluída com ID:', id);
+                    res.json({ message: 'Venda excluída com sucesso!' });
+                });
+            }
+        } else {
+            // Usar SQLite local
+            db.run('DELETE FROM vendas WHERE id = ?', [id], function(err) {
+                if (err) {
+                    console.error('Erro ao excluir venda:', err);
+                    return res.status(500).json({ error: err.message });
+                }
+                console.log('Venda excluída com ID:', id);
+                res.json({ message: 'Venda excluída com sucesso!' });
+            });
+        }
+    } catch (error) {
+        console.error('Erro geral:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// GET producao
+app.get('/api/producao', async (req, res) => {
+    console.log('=== GET /api/producao chamado ===');
+    console.log('useSupabase:', useSupabase);
+    
+    if (useSupabase) {
+        // Usar PostgreSQL direto
+        console.log('Buscando produção no PostgreSQL...');
+        const { Client } = require('pg');
+        
+        try {
+            // Usar o endpoint correto do pooler
+            const poolerUrl = databaseUrl.replace(
+                'postgresql://postgres:tiVW2cmpeVStByLm@db.yuwddqxdnyjvilbmjooc.supabase.co:5432/postgres',
+                'postgresql://postgres.yuwddqxdnyjvilbmjooc:tiVW2cmpeVStByLm@aws-1-sa-east-1.pooler.supabase.com:6543/postgres'
+            );
+            
+            const client = new Client({
+                connectionString: poolerUrl,
+                ssl: { rejectUnauthorized: false },
+                connectionTimeoutMillis: 10000,
+                query_timeout: 10000
+            });
+            
+            await client.connect();
+            
+            const result = await client.query(`
+                SELECT p.*, f.nome as nome_funcionario 
+                FROM producao p 
+                LEFT JOIN funcionarios f ON p.id_funcionario = f.id
+                ORDER BY p.data_producao DESC
+            `);
+            
+            console.log('Produção encontrada no PostgreSQL:', result.rows.length);
+            console.log('Dados:', result.rows);
+            
+            await client.end();
+            
+            res.json(result.rows);
+            
+        } catch (error) {
+            console.log('Erro no PostgreSQL, usando SQLite fallback:', error.message);
+            
+            // Fallback para SQLite
+            const query = `
+                SELECT p.*, f.nome as nome_funcionario 
+                FROM producao p 
+                LEFT JOIN funcionarios f ON p.id_funcionario = f.id
+                ORDER BY p.data_producao DESC
+            `;
+            
+            db.all(query, (err, rows) => {
+                if (err) {
+                    console.error('Erro no SQLite fallback:', err);
+                    return res.status(500).json({ error: err.message });
+                }
+                console.log('Produção encontrada no SQLite fallback:', rows?.length || 0);
+                console.log('Dados SQLite:', rows);
+                res.json(rows);
+            });
+        }
+    } else {
+        // Usar SQLite local
+        console.log('Usando SQLite local para produção...');
+        const query = `
+            SELECT p.*, f.nome as nome_funcionario 
+            FROM producao p 
+            LEFT JOIN funcionarios f ON p.id_funcionario = f.id
+            ORDER BY p.data_producao DESC
+        `;
+        
+        db.all(query, (err, rows) => {
+            if (err) {
+                console.error('Erro no SQLite local:', err);
+                res.status(500).json({ error: err.message });
+                return;
+            }
+            console.log('Produção encontrada no SQLite local:', rows?.length || 0);
+            console.log('Dados SQLite local:', rows);
+            res.json(rows);
+        });
+    }
+});
+
+// POST producao
+app.post('/api/producao', async (req, res) => {
+    console.log('=== POST /api/producao ===');
+    console.log('Dados recebidos:', req.body);
+    
+    try {
+        const { id_funcionario, maquinas_produzidas, data_producao } = req.body;
+        
+        // Validação básica
+        if (!id_funcionario || !maquinas_produzidas || !data_producao) {
+            console.log('Erro: Campos obrigatórios faltando');
+            return res.status(400).json({ error: 'Todos os campos são obrigatórios' });
+        }
+        
+        if (useSupabase) {
+            // Usar PostgreSQL direto
+            console.log('Inserindo produção no PostgreSQL...');
+            const { Client } = require('pg');
+            
+            try {
+                // Usar o endpoint correto do pooler
+                const poolerUrl = databaseUrl.replace(
+                    'postgresql://postgres:tiVW2cmpeVStByLm@db.yuwddqxdnyjvilbmjooc.supabase.co:5432/postgres',
+                    'postgresql://postgres.yuwddqxdnyjvilbmjooc:tiVW2cmpeVStByLm@aws-1-sa-east-1.pooler.supabase.com:6543/postgres'
+                );
+                
+                const client = new Client({
+                    connectionString: poolerUrl,
+                    ssl: { rejectUnauthorized: false },
+                    connectionTimeoutMillis: 10000,
+                    query_timeout: 10000
+                });
+                
+                await client.connect();
+                
+                // Verificar se funcionário existe e está ativo
+                const funcResult = await client.query('SELECT id, nome, ativo FROM funcionarios WHERE id = $1', [id_funcionario]);
+                
+                if (funcResult.rows.length === 0) {
+                    console.error('Funcionário não encontrado:', id_funcionario);
+                    await client.end();
+                    return res.status(400).json({ error: 'Funcionário não encontrado' });
+                }
+                
+                if (!funcResult.rows[0].ativo) {
+                    console.error('Funcionário está inativo:', id_funcionario);
+                    await client.end();
+                    return res.status(400).json({ error: 'Funcionário está inativo' });
+                }
+                
+                // Inserir produção
+                const result = await client.query(
+                    `INSERT INTO producao (id_funcionario, maquinas_produzidas, data_producao) 
+                     VALUES ($1, $2, $3) RETURNING *`,
+                    [id_funcionario, maquinas_produzidas, data_producao]
+                );
+                
+                console.log('Produção inserida no PostgreSQL:', result.rows[0]);
+                await client.end();
+                
+                // Adicionar nome do funcionário na resposta
+                const producaoResponse = {
+                    ...result.rows[0],
+                    nome_funcionario: funcResult.rows[0].nome
+                };
+                
+                res.json(producaoResponse);
+                
+            } catch (pgError) {
+                console.log('PostgreSQL falhou, usando SQLite fallback:', pgError.message);
+                
+                // Fallback para SQLite
+                db.get('SELECT id, nome, ativo FROM funcionarios WHERE id = ?', [id_funcionario], (err, row) => {
+                    if (err) {
+                        console.error('Erro ao verificar funcionário:', err);
+                        return res.status(500).json({ error: err.message });
+                    }
+                    
+                    if (!row) {
+                        console.error('Funcionário não encontrado:', id_funcionario);
+                        return res.status(400).json({ error: 'Funcionário não encontrado' });
+                    }
+                    
+                    if (!row.ativo) {
+                        console.error('Funcionário está inativo:', id_funcionario);
+                        return res.status(400).json({ error: 'Funcionário está inativo' });
+                    }
+                    
+                    // Inserir produção
+                    const sql = 'INSERT INTO producao (id_funcionario, maquinas_produzidas, data_producao) VALUES (?, ?, ?)';
+                    const params = [id_funcionario, maquinas_produzidas, data_producao];
+                    
+                    db.run(sql, params, function(err) {
+                        if (err) {
+                            console.error('Erro ao inserir produção:', err);
+                            return res.status(500).json({ error: err.message });
+                        }
+                        console.log('Produção inserida com ID:', this.lastID);
+                        res.json({ 
+                            id: this.lastID, 
+                            id_funcionario, 
+                            maquinas_produzidas, 
+                            data_producao,
+                            nome_funcionario: row.nome
+                        });
+                    });
+                });
+            }
+        } else {
+            // Usar SQLite local
+            db.get('SELECT id, nome, ativo FROM funcionarios WHERE id = ?', [id_funcionario], (err, row) => {
+                if (err) {
+                    console.error('Erro ao verificar funcionário:', err);
+                    return res.status(500).json({ error: err.message });
+                }
+                
+                if (!row) {
+                    console.error('Funcionário não encontrado:', id_funcionario);
+                    return res.status(400).json({ error: 'Funcionário não encontrado' });
+                }
+                
+                if (!row.ativo) {
+                    console.error('Funcionário está inativo:', id_funcionario);
+                    return res.status(400).json({ error: 'Funcionário está inativo' });
+                }
+                
+                // Inserir produção
+                const sql = 'INSERT INTO producao (id_funcionario, maquinas_produzidas, data_producao) VALUES (?, ?, ?)';
+                const params = [id_funcionario, maquinas_produzidas, data_producao];
+                
+                db.run(sql, params, function(err) {
+                    if (err) {
+                        console.error('Erro ao inserir produção:', err);
+                        return res.status(500).json({ error: err.message });
+                    }
+                    console.log('Produção inserida com ID:', this.lastID);
+                    res.json({ 
+                        id: this.lastID, 
+                        id_funcionario, 
+                        maquinas_produzidas, 
+                        data_producao,
+                        nome_funcionario: row.nome
+                    });
+                });
+            });
+        }
+    } catch (error) {
+        console.error('Erro geral:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// PUT producao (editar)
+app.put('/api/producao/:id', async (req, res) => {
+    console.log('=== PUT /api/producao/:id ===');
+    console.log('ID:', req.params.id);
+    console.log('Dados recebidos:', req.body);
+    
+    try {
+        const { id } = req.params;
+        const { id_funcionario, maquinas_produzidas, data_producao } = req.body;
+        
+        // Validação básica
+        if (!id_funcionario || !maquinas_produzidas || !data_producao) {
+            return res.status(400).json({ error: 'Todos os campos são obrigatórios' });
+        }
+        
+        if (useSupabase) {
+            // Usar PostgreSQL direto
+            console.log('Atualizando produção no PostgreSQL...');
+            const { Client } = require('pg');
+            
+            try {
+                const poolerUrl = databaseUrl.replace(
+                    'postgresql://postgres:tiVW2cmpeVStByLm@db.yuwddqxdnyjvilbmjooc.supabase.co:5432/postgres',
+                    'postgresql://postgres.yuwddqxdnyjvilbmjooc:tiVW2cmpeVStByLm@aws-1-sa-east-1.pooler.supabase.com:6543/postgres'
+                );
+                
+                const client = new Client({
+                    connectionString: poolerUrl,
+                    ssl: { rejectUnauthorized: false },
+                    connectionTimeoutMillis: 10000,
+                    query_timeout: 10000
+                });
+                
+                await client.connect();
+                
+                // Verificar se funcionário existe e está ativo
+                const funcResult = await client.query('SELECT id, nome, ativo FROM funcionarios WHERE id = $1', [id_funcionario]);
+                
+                if (funcResult.rows.length === 0) {
+                    await client.end();
+                    return res.status(400).json({ error: 'Funcionário não encontrado' });
+                }
+                
+                if (!funcResult.rows[0].ativo) {
+                    await client.end();
+                    return res.status(400).json({ error: 'Funcionário está inativo' });
+                }
+                
+                // Atualizar produção
+                const result = await client.query(
+                    `UPDATE producao SET 
+                     id_funcionario = $1, maquinas_produzidas = $2, data_producao = $3, updated_at = NOW()
+                     WHERE id = $4 RETURNING *`,
+                    [id_funcionario, maquinas_produzidas, data_producao, id]
+                );
+                
+                console.log('Produção atualizada no PostgreSQL:', result.rows[0]);
+                await client.end();
+                
+                // Adicionar nome do funcionário na resposta
+                const producaoResponse = {
+                    ...result.rows[0],
+                    nome_funcionario: funcResult.rows[0].nome
+                };
+                
+                res.json(producaoResponse);
+                
+            } catch (pgError) {
+                console.log('PostgreSQL falhou:', pgError.message);
+                res.status(500).json({ error: pgError.message });
+            }
+        } else {
+            // Usar SQLite local
+            const sql = `UPDATE producao SET 
+                id_funcionario = ?, maquinas_produzidas = ?, data_producao = ?
+                WHERE id = ?`;
+            
+            const params = [id_funcionario, maquinas_produzidas, data_producao, id];
+            
+            db.run(sql, params, function(err) {
+                if (err) {
+                    console.error('Erro ao atualizar produção:', err);
+                    return res.status(500).json({ error: err.message });
+                }
+                
+                // Buscar nome do funcionário
+                db.get('SELECT nome FROM funcionarios WHERE id = ?', [id_funcionario], (err, row) => {
+                    if (err) {
+                        console.error('Erro ao buscar funcionário:', err);
+                        return res.status(500).json({ error: err.message });
+                    }
+                    
+                    res.json({ 
+                        id: Number(id), 
+                        id_funcionario, 
+                        maquinas_produzidas, 
+                        data_producao,
+                        nome_funcionario: row ? row.nome : 'Desconhecido'
+                    });
+                });
+            });
+        }
+    } catch (error) {
+        console.error('Erro geral:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// DELETE producao
+app.delete('/api/producao/:id', async (req, res) => {
+    console.log('=== DELETE /api/producao/:id ===');
+    console.log('ID:', req.params.id);
+    
+    try {
+        const { id } = req.params;
+        
+        if (useSupabase) {
+            // Usar PostgreSQL direto
+            console.log('Excluindo produção no PostgreSQL...');
+            const { Client } = require('pg');
+            
+            try {
+                const poolerUrl = databaseUrl.replace(
+                    'postgresql://postgres:tiVW2cmpeVStByLm@db.yuwddqxdnyjvilbmjooc.supabase.co:5432/postgres',
+                    'postgresql://postgres.yuwddqxdnyjvilbmjooc:tiVW2cmpeVStByLm@aws-1-sa-east-1.pooler.supabase.com:6543/postgres'
+                );
+                
+                const client = new Client({
+                    connectionString: poolerUrl,
+                    ssl: { rejectUnauthorized: false },
+                    connectionTimeoutMillis: 10000,
+                    query_timeout: 10000
+                });
+                
+                await client.connect();
+                
+                const result = await client.query('DELETE FROM producao WHERE id = $1 RETURNING *', [id]);
+                
+                console.log('Produção excluída no PostgreSQL:', result.rows[0]);
+                await client.end();
+                
+                res.json({ message: 'Produção excluída com sucesso!' });
+                
+            } catch (pgError) {
+                console.log('PostgreSQL falhou, usando SQLite fallback:', pgError.message);
+                
+                // Fallback para SQLite
+                db.run('DELETE FROM producao WHERE id = ?', [id], function(err) {
+                    if (err) {
+                        console.error('Erro ao excluir produção:', err);
+                        return res.status(500).json({ error: err.message });
+                    }
+                    console.log('Produção excluída com ID:', id);
+                    res.json({ message: 'Produção excluída com sucesso!' });
+                });
+            }
+        } else {
+            // Usar SQLite local
+            db.run('DELETE FROM producao WHERE id = ?', [id], function(err) {
+                if (err) {
+                    console.error('Erro ao excluir produção:', err);
+                    return res.status(500).json({ error: err.message });
+                }
+                console.log('Produção excluída com ID:', id);
+                res.json({ message: 'Produção excluída com sucesso!' });
+            });
+        }
+    } catch (error) {
+        console.error('Erro geral:', error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
 // Iniciar servidor
