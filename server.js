@@ -124,59 +124,31 @@ async function createSupabaseTables() {
             }
             
             // Criar tabela folha_pagamento
+            try {
+                // Tentar dropar a tabela existente para recriar com estrutura correta
+                await client.query(`DROP TABLE IF EXISTS folha_pagamento CASCADE`);
+                console.log('Tabela folha_pagamento antiga removida');
+            } catch (dropError) {
+                console.log('Tabela não existe ou erro ao remover:', dropError.message);
+            }
+            
+            // Recriar com estrutura correta
             await client.query(`
-                CREATE TABLE IF NOT EXISTS folha_pagamento (
+                CREATE TABLE folha_pagamento (
                     id BIGSERIAL PRIMARY KEY,
                     id_funcionario BIGINT NOT NULL REFERENCES funcionarios(id),
                     mes_referencia TEXT NOT NULL,
-                    salario_base REAL NOT NULL,
-                    comissoes REAL NOT NULL,
-                    bonus REAL NOT NULL,
-                    total REAL NOT NULL,
-                    data_geracao DATE DEFAULT CURRENT_DATE,
-                    detalhe_comissoes TEXT
+                    salario_base REAL NOT NULL DEFAULT 0,
+                    comissoes REAL NOT NULL DEFAULT 0,
+                    bonus REAL NOT NULL DEFAULT 0,
+                    total REAL NOT NULL DEFAULT 0,
+                    data_geracao DATE DEFAULT CURRENT_DATE NOT NULL,
+                    detalhe_comissoes TEXT,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW()
                 )
             `);
-            console.log('Tabela folha_pagamento criada no PostgreSQL');
-            
-            // Corrigir coluna data_geracao se necessário
-            try {
-                // Verificar se a coluna existe
-                const colResult = await client.query(`
-                    SELECT column_name FROM information_schema.columns 
-                    WHERE table_name = 'folha_pagamento' AND column_name = 'data_geracao'
-                `);
-                
-                if (colResult.rows.length === 0) {
-                    // Adicionar coluna data_geracao
-                    await client.query(`
-                        ALTER TABLE folha_pagamento 
-                        ADD COLUMN data_geracao DATE DEFAULT CURRENT_DATE
-                    `);
-                    console.log('Coluna data_geracao adicionada');
-                } else {
-                    // Verificar se a coluna permite NULL
-                    const nullResult = await client.query(`
-                        SELECT is_nullable FROM information_schema.columns 
-                        WHERE table_name = 'folha_pagamento' AND column_name = 'data_geracao'
-                    `);
-                    
-                    if (nullResult.rows[0]?.is_nullable === 'YES') {
-                        // Tornar a coluna NOT NULL com valor padrão
-                        await client.query(`
-                            UPDATE folha_pagamento SET data_geracao = CURRENT_DATE 
-                            WHERE data_geracao IS NULL
-                        `);
-                        await client.query(`
-                            ALTER TABLE folha_pagamento 
-                            ALTER COLUMN data_geracao SET NOT NULL
-                        `);
-                        console.log('Coluna data_geracao corrigida para NOT NULL');
-                    }
-                }
-            } catch (alterError) {
-                console.log('Erro ao corrigir coluna data_geracao:', alterError.message);
-            }
+            console.log('Tabela folha_pagamento recriada com estrutura correta');
             
         } catch (connError) {
             console.log('Erro na conexão (timeout):', connError.message);
