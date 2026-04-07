@@ -139,6 +139,45 @@ async function createSupabaseTables() {
             `);
             console.log('Tabela folha_pagamento criada no PostgreSQL');
             
+            // Corrigir coluna data_geracao se necessário
+            try {
+                // Verificar se a coluna existe
+                const colResult = await client.query(`
+                    SELECT column_name FROM information_schema.columns 
+                    WHERE table_name = 'folha_pagamento' AND column_name = 'data_geracao'
+                `);
+                
+                if (colResult.rows.length === 0) {
+                    // Adicionar coluna data_geracao
+                    await client.query(`
+                        ALTER TABLE folha_pagamento 
+                        ADD COLUMN data_geracao DATE DEFAULT CURRENT_DATE
+                    `);
+                    console.log('Coluna data_geracao adicionada');
+                } else {
+                    // Verificar se a coluna permite NULL
+                    const nullResult = await client.query(`
+                        SELECT is_nullable FROM information_schema.columns 
+                        WHERE table_name = 'folha_pagamento' AND column_name = 'data_geracao'
+                    `);
+                    
+                    if (nullResult.rows[0]?.is_nullable === 'YES') {
+                        // Tornar a coluna NOT NULL com valor padrão
+                        await client.query(`
+                            UPDATE folha_pagamento SET data_geracao = CURRENT_DATE 
+                            WHERE data_geracao IS NULL
+                        `);
+                        await client.query(`
+                            ALTER TABLE folha_pagamento 
+                            ALTER COLUMN data_geracao SET NOT NULL
+                        `);
+                        console.log('Coluna data_geracao corrigida para NOT NULL');
+                    }
+                }
+            } catch (alterError) {
+                console.log('Erro ao corrigir coluna data_geracao:', alterError.message);
+            }
+            
         } catch (connError) {
             console.log('Erro na conexão (timeout):', connError.message);
             throw connError;
