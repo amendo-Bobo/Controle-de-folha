@@ -1139,16 +1139,16 @@ async function exportarPDF() {
                 const partes = [];
                 
                 if (detalhes.qtd_grande_sem_desconto > 0) {
-                    partes.push(`${detalhes.qtd_grande_sem_desconto}x R$${detalhes.valor_grande_sem_desconto}`);
+                    partes.push(`${detalhes.qtd_grande_sem_desconto}x R$${detalhes.valor_grande_sem_desconto || 0}`);
                 }
                 if (detalhes.qtd_grande_com_desconto > 0) {
-                    partes.push(`${detalhes.qtd_grande_com_desconto}x R$${detalhes.valor_grande_com_desconto}`);
+                    partes.push(`${detalhes.qtd_grande_com_desconto}x R$${detalhes.valor_grande_com_desconto || 0}`);
                 }
                 if (detalhes.qtd_pequena_sem_desconto > 0) {
-                    partes.push(`${detalhes.qtd_pequena_sem_desconto}x R$${detalhes.valor_pequena_sem_desconto}`);
+                    partes.push(`${detalhes.qtd_pequena_sem_desconto}x R$${detalhes.valor_pequena_sem_desconto || 0}`);
                 }
                 if (detalhes.qtd_pequena_com_desconto > 0) {
-                    partes.push(`${detalhes.qtd_pequena_com_desconto}x R$${detalhes.valor_pequena_com_desconto}`);
+                    partes.push(`${detalhes.qtd_pequena_com_desconto}x R$${detalhes.valor_pequena_com_desconto || 0}`);
                 }
                 
                 const detalheTexto = partes.join(' + ') || 'Nenhuma';
