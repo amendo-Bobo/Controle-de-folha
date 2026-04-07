@@ -1925,8 +1925,8 @@ app.post('/api/gerar-folha/:mes', async (req, res) => {
                         // Buscar vendas do mês para esta vendedora
                         const vendasResult = await client.query(
                             `SELECT * FROM vendas 
-                             WHERE id_funcionario = $1 AND DATE_TRUNC('month', data_venda) = $2::date`,
-                            [func.id, `${mes}-01`]
+                             WHERE id_funcionario = $1 AND TO_CHAR(data_venda, 'YYYY-MM') = $2`,
+                            [func.id, mes]
                         );
                         const vendas = vendasResult.rows;
                         
@@ -1985,8 +1985,8 @@ app.post('/api/gerar-folha/:mes', async (req, res) => {
                         const prodResult = await client.query(
                             `SELECT SUM(maquinas_produzidas) as total 
                              FROM producao 
-                             WHERE id_funcionario = $1 AND DATE_TRUNC('month', data_producao) = $2::date`,
-                            [func.id, `${mes}-01`]
+                             WHERE id_funcionario = $1 AND TO_CHAR(data_producao, 'YYYY-MM') = $2`,
+                            [func.id, mes]
                         );
                         
                         const totalProduzido = prodResult.rows[0]?.total || 0;
