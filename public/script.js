@@ -751,6 +751,115 @@ async function excluirProducao(id) {
 
 function editarFuncionario(id) {
     console.log('Editar funcionário:', id);
+    
+    // Buscar dados do funcionário
+    fetch(`${API_BASE}/api/funcionarios`)
+        .then(response => response.json())
+        .then(funcionarios => {
+            const funcionario = funcionarios.find(f => f.id === id);
+            
+            if (funcionario) {
+                // Preencher o formulário
+                document.getElementById('func-nome').value = funcionario.nome;
+                document.getElementById('func-tipo').value = funcionario.tipo;
+                document.getElementById('func-comissao-grande').value = funcionario.comissao_maquina_grande || 450;
+                document.getElementById('func-comissao-pequena').value = funcionario.comissao_maquina_pequena || 250;
+                document.getElementById('func-comissao-extra').value = funcionario.comissao_extra_desconto || 100;
+                document.getElementById('func-meta').value = funcionario.meta_maquinas || 10;
+                document.getElementById('func-bonus-meta').value = funcionario.bonus_meta || 1000;
+                document.getElementById('func-salario').value = funcionario.salario_base || 0;
+                document.getElementById('func-comissao-producao').value = funcionario.comissao_maquina_producao || 100;
+                
+                // Mostrar/esconder campos conforme o tipo
+                toggleCamposFuncionario(funcionario.tipo);
+                
+                // Mudar o título do modal
+                document.querySelector('#modalFuncionario .modal-title').textContent = 'Editar Funcionário';
+                
+                // Mudar o botão de salvar
+                const btnSalvar = document.querySelector('#modalFuncionario .modal-footer .btn-primary');
+                btnSalvar.textContent = 'Atualizar';
+                btnSalvar.onclick = function() { atualizarFuncionario(id); };
+                
+                // Abrir o modal
+                const modal = new bootstrap.Modal(document.getElementById('modalFuncionario'));
+                modal.show();
+            }
+        })
+        .catch(error => {
+            console.error('Erro ao buscar funcionário:', error);
+            alert('Erro ao buscar dados do funcionário!');
+        });
+}
+
+async function atualizarFuncionario(id) {
+    const nome = document.getElementById('func-nome').value;
+    const tipo = document.getElementById('func-tipo').value;
+    const comissaoGrande = parseFloat(document.getElementById('func-comissao-grande').value) || 450;
+    const comissaoPequena = parseFloat(document.getElementById('func-comissao-pequena').value) || 250;
+    const comissaoExtra = parseFloat(document.getElementById('func-comissao-extra').value) || 100;
+    const meta = parseInt(document.getElementById('func-meta').value) || 10;
+    const bonusMeta = parseFloat(document.getElementById('func-bonus-meta').value) || 1000;
+    const salario = parseFloat(document.getElementById('func-salario').value) || 0;
+    const comissaoProducao = parseFloat(document.getElementById('func-comissao-producao').value) || 100;
+    
+    if (!nome || !tipo) {
+        alert('Preencha todos os campos obrigatórios!');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE}/api/funcionarios/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                nome,
+                tipo,
+                comissao_maquina_grande: tipo === 'vendedora' ? comissaoGrande : 0,
+                comissao_maquina_pequena: tipo === 'vendedora' ? comissaoPequena : 0,
+                comissao_extra_desconto: tipo === 'vendedora' ? comissaoExtra : 0,
+                meta_maquinas: tipo === 'vendedora' ? meta : 0,
+                bonus_meta: tipo === 'vendedora' ? bonusMeta : 0,
+                salario_base: tipo === 'producao' ? salario : 0,
+                comissao_maquina_producao: tipo === 'producao' ? comissaoProducao : 0
+            })
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            console.log('Funcionário atualizado:', data);
+            
+            // Fechar modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('modalFuncionario'));
+            if (modal) {
+                modal.hide();
+            }
+            
+            // Resetar formulário
+            document.getElementById('form-funcionario').reset();
+            
+            // Resetar o botão e título
+            document.querySelector('#modalFuncionario .modal-title').textContent = 'Novo Funcionário';
+            const btnSalvar = document.querySelector('#modalFuncionario .modal-footer .btn-primary');
+            btnSalvar.textContent = 'Salvar';
+            btnSalvar.onclick = salvarFuncionario;
+            
+            // Recarregar listas
+            carregarFuncionarios();
+            carregarDashboard();
+            
+            // Mostrar sucesso
+            alert('Funcionário atualizado com sucesso!');
+        } else {
+            const errorData = await response.text();
+            console.error('Erro response:', response.status, errorData);
+            alert('Erro ao atualizar funcionário: ' + errorData);
+        }
+        
+    } catch (error) {
+        console.error('Erro ao atualizar funcionário:', error);
+        alert('Erro ao atualizar funcionário!');
+    }
 }
 
 async function editarVenda(id) {
