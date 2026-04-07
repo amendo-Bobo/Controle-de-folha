@@ -597,7 +597,7 @@ app.put('/api/funcionarios/:id/desativar', async (req, res) => {
 });
 
 // POST vendas
-app.post('/api/vendas', (req, res) => {
+app.post('/api/vendas', async (req, res) => {
     console.log('=== POST /api/vendas ===');
     console.log('Dados recebidos:', req.body);
     
@@ -610,43 +610,142 @@ app.post('/api/vendas', (req, res) => {
             return res.status(400).json({ error: 'Todos os campos são obrigatórios' });
         }
         
-        // Verificar se funcionário existe
-        db.get('SELECT id, nome, ativo FROM funcionarios WHERE id = ?', [id_funcionario], (err, row) => {
-            if (err) {
-                console.error('Erro ao verificar funcionário:', err);
-                return res.status(500).json({ error: err.message });
+        if (useSupabase) {
+            // Usar PostgreSQL direto
+            console.log('Inserindo venda no PostgreSQL...');
+            const { Client } = require('pg');
+            
+            try {
+                // Usar o endpoint correto do pooler
+                const poolerUrl = databaseUrl.replace(
+                    'postgresql://postgres:tiVW2cmpeVStByLm@db.yuwddqxdnyjvilbmjooc.supabase.co:5432/postgres',
+                    'postgresql://postgres.yuwddqxdnyjvilbmjooc:tiVW2cmpeVStByLm@aws-1-sa-east-1.pooler.supabase.com:6543/postgres'
+                );
+                
+                const client = new Client({
+                    connectionString: poolerUrl,
+                    ssl: { rejectUnauthorized: false },
+                    connectionTimeoutMillis: 10000,
+                    query_timeout: 10000
+                });
+                
+                await client.connect();
+                
+                // Verificar se funcionário existe e está ativo
+                const funcResult = await client.query('SELECT id, nome, ativo FROM funcionarios WHERE id = $1', [id_funcionario]);
+                
+                if (funcResult.rows.length === 0) {
+                    console.error('Funcionário não encontrado:', id_funcionario);
+                    await client.end();
+                    return res.status(400).json({ error: 'Funcionário não encontrado' });
+                }
+                
+                if (!funcResult.rows[0].ativo) {
+                    console.error('Funcionário está inativo:', id_funcionario);
+                    await client.end();
+                    return res.status(400).json({ error: 'Funcionário está inativo' });
+                }
+                
+                // Inserir venda
+                const result = await client.query(
+                    `INSERT INTO vendas (id_funcionario, tipo_maquina, quantidade_maquinas, com_desconto, data_venda) 
+                     VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+                    [id_funcionario, tipo_maquina, quantidade_maquinas, com_desconto, data_venda]
+                );
+                
+                console.log('Venda inserida no PostgreSQL:', result.rows[0]);
+                await client.end();
+                
+                // Adicionar nome do funcionário na resposta
+                const vendaResponse = {
+                    ...result.rows[0],
+                    nome_funcionario: funcResult.rows[0].nome
+                };
+                
+                res.json(vendaResponse);
+                
+            } catch (pgError) {
+                console.log('PostgreSQL falhou, usando SQLite fallback:', pgError.message);
+                
+                // Fallback para SQLite
+                db.get('SELECT id, nome, ativo FROM funcionarios WHERE id = ?', [id_funcionario], (err, row) => {
+                    if (err) {
+                        console.error('Erro ao verificar funcionário:', err);
+                        return res.status(500).json({ error: err.message });
+                    }
+                    
+                    if (!row) {
+                        console.error('Funcionário não encontrado:', id_funcionario);
+                        return res.status(400).json({ error: 'Funcionário não encontrado' });
+                    }
+                    
+                    if (!row.ativo) {
+                        console.error('Funcionário está inativo:', id_funcionario);
+                        return res.status(400).json({ error: 'Funcionário está inativo' });
+                    }
+                    
+                    // Inserir venda
+                    const sql = 'INSERT INTO vendas (id_funcionario, tipo_maquina, quantidade_maquinas, com_desconto, data_venda) VALUES (?, ?, ?, ?, ?)';
+                    const params = [id_funcionario, tipo_maquina, quantidade_maquinas, com_desconto, data_venda];
+                    
+                    db.run(sql, params, function(err) {
+                        if (err) {
+                            console.error('Erro ao inserir venda:', err);
+                            return res.status(500).json({ error: err.message });
+                        }
+                        console.log('Venda inserida com ID:', this.lastID);
+                        res.json({ 
+                            id: this.lastID, 
+                            id_funcionario, 
+                            tipo_maquina, 
+                            quantidade_maquinas, 
+                            com_desconto, 
+                            data_venda,
+                            nome_funcionario: row.nome
+                        });
+                    });
+                });
             }
-            
-            if (!row) {
-                console.error('Funcionário não encontrado:', id_funcionario);
-                return res.status(400).json({ error: 'Funcionário não encontrado' });
-            }
-            
-            if (!row.ativo) {
-                console.error('Funcionário está inativo:', id_funcionario);
-                return res.status(400).json({ error: 'Funcionário está inativo' });
-            }
-            
-            // Inserir venda
-            const sql = 'INSERT INTO vendas (id_funcionario, tipo_maquina, quantidade_maquinas, com_desconto, data_venda) VALUES (?, ?, ?, ?, ?)';
-            const params = [id_funcionario, tipo_maquina, quantidade_maquinas, com_desconto, data_venda];
-            
-            db.run(sql, params, function(err) {
+        } else {
+            // Usar SQLite local
+            db.get('SELECT id, nome, ativo FROM funcionarios WHERE id = ?', [id_funcionario], (err, row) => {
                 if (err) {
-                    console.error('Erro ao inserir venda:', err);
+                    console.error('Erro ao verificar funcionário:', err);
                     return res.status(500).json({ error: err.message });
                 }
-                console.log('Venda inserida com ID:', this.lastID);
-                res.json({ 
-                    id: this.lastID, 
-                    id_funcionario, 
-                    tipo_maquina, 
-                    quantidade_maquinas, 
-                    com_desconto, 
-                    data_venda
+                
+                if (!row) {
+                    console.error('Funcionário não encontrado:', id_funcionario);
+                    return res.status(400).json({ error: 'Funcionário não encontrado' });
+                }
+                
+                if (!row.ativo) {
+                    console.error('Funcionário está inativo:', id_funcionario);
+                    return res.status(400).json({ error: 'Funcionário está inativo' });
+                }
+                
+                // Inserir venda
+                const sql = 'INSERT INTO vendas (id_funcionario, tipo_maquina, quantidade_maquinas, com_desconto, data_venda) VALUES (?, ?, ?, ?, ?)';
+                const params = [id_funcionario, tipo_maquina, quantidade_maquinas, com_desconto, data_venda];
+                
+                db.run(sql, params, function(err) {
+                    if (err) {
+                        console.error('Erro ao inserir venda:', err);
+                        return res.status(500).json({ error: err.message });
+                    }
+                    console.log('Venda inserida com ID:', this.lastID);
+                    res.json({ 
+                        id: this.lastID, 
+                        id_funcionario, 
+                        tipo_maquina, 
+                        quantidade_maquinas, 
+                        com_desconto, 
+                        data_venda,
+                        nome_funcionario: row.nome
+                    });
                 });
             });
-        });
+        }
     } catch (error) {
         console.error('Erro geral:', error);
         res.status(500).json({ error: error.message });
