@@ -1422,6 +1422,405 @@ app.delete('/api/producao/:id', async (req, res) => {
     }
 });
 
+// GET folha-pagamento
+app.get('/api/folha-pagamento', async (req, res) => {
+    console.log('=== GET /api/folha-pagamento chamado ===');
+    console.log('useSupabase:', useSupabase);
+    
+    if (useSupabase) {
+        // Usar PostgreSQL direto
+        console.log('Buscando folha de pagamento no PostgreSQL...');
+        const { Client } = require('pg');
+        
+        try {
+            // Usar o endpoint correto do pooler
+            const poolerUrl = databaseUrl.replace(
+                'postgresql://postgres:tiVW2cmpeVStByLm@db.yuwddqxdnyjvilbmjooc.supabase.co:5432/postgres',
+                'postgresql://postgres.yuwddqxdnyjvilbmjooc:tiVW2cmpeVStByLm@aws-1-sa-east-1.pooler.supabase.com:6543/postgres'
+            );
+            
+            const client = new Client({
+                connectionString: poolerUrl,
+                ssl: { rejectUnauthorized: false },
+                connectionTimeoutMillis: 10000,
+                query_timeout: 10000
+            });
+            
+            await client.connect();
+            
+            const result = await client.query(`
+                SELECT fp.*, f.nome as nome_funcionario 
+                FROM folha_pagamento fp 
+                LEFT JOIN funcionarios f ON fp.id_funcionario = f.id
+                ORDER BY fp.mes_referencia DESC, f.nome ASC
+            `);
+            
+            console.log('Folha de pagamento encontrada no PostgreSQL:', result.rows.length);
+            console.log('Dados:', result.rows);
+            
+            await client.end();
+            
+            res.json(result.rows);
+            
+        } catch (error) {
+            console.log('Erro no PostgreSQL, usando SQLite fallback:', error.message);
+            
+            // Fallback para SQLite
+            const query = `
+                SELECT fp.*, f.nome as nome_funcionario 
+                FROM folha_pagamento fp 
+                LEFT JOIN funcionarios f ON fp.id_funcionario = f.id
+                ORDER BY fp.mes_referencia DESC, f.nome ASC
+            `;
+            
+            db.all(query, (err, rows) => {
+                if (err) {
+                    console.error('Erro no SQLite fallback:', err);
+                    return res.status(500).json({ error: err.message });
+                }
+                console.log('Folha de pagamento encontrada no SQLite fallback:', rows?.length || 0);
+                console.log('Dados SQLite:', rows);
+                res.json(rows);
+            });
+        }
+    } else {
+        // Usar SQLite local
+        console.log('Usando SQLite local para folha de pagamento...');
+        const query = `
+            SELECT fp.*, f.nome as nome_funcionario 
+            FROM folha_pagamento fp 
+            LEFT JOIN funcionarios f ON fp.id_funcionario = f.id
+            ORDER BY fp.mes_referencia DESC, f.nome ASC
+        `;
+        
+        db.all(query, (err, rows) => {
+            if (err) {
+                console.error('Erro no SQLite local:', err);
+                res.status(500).json({ error: err.message });
+                return;
+            }
+            console.log('Folha de pagamento encontrada no SQLite local:', rows?.length || 0);
+            console.log('Dados SQLite local:', rows);
+            res.json(rows);
+        });
+    }
+});
+
+// GET folha-pagamento por mês
+app.get('/api/folha-pagamento/:mes', async (req, res) => {
+    console.log('=== GET /api/folha-pagamento/:mes chamado ===');
+    console.log('Mês:', req.params.mes);
+    console.log('useSupabase:', useSupabase);
+    
+    const { mes } = req.params;
+    
+    if (useSupabase) {
+        // Usar PostgreSQL direto
+        console.log('Buscando folha de pagamento no PostgreSQL...');
+        const { Client } = require('pg');
+        
+        try {
+            // Usar o endpoint correto do pooler
+            const poolerUrl = databaseUrl.replace(
+                'postgresql://postgres:tiVW2cmpeVStByLm@db.yuwddqxdnyjvilbmjooc.supabase.co:5432/postgres',
+                'postgresql://postgres.yuwddqxdnyjvilbmjooc:tiVW2cmpeVStByLm@aws-1-sa-east-1.pooler.supabase.com:6543/postgres'
+            );
+            
+            const client = new Client({
+                connectionString: poolerUrl,
+                ssl: { rejectUnauthorized: false },
+                connectionTimeoutMillis: 10000,
+                query_timeout: 10000
+            });
+            
+            await client.connect();
+            
+            const result = await client.query(`
+                SELECT fp.*, f.nome as nome_funcionario 
+                FROM folha_pagamento fp 
+                LEFT JOIN funcionarios f ON fp.id_funcionario = f.id
+                WHERE fp.mes_referencia = $1
+                ORDER BY f.nome ASC
+            `, [mes]);
+            
+            console.log('Folha de pagamento encontrada no PostgreSQL:', result.rows.length);
+            console.log('Dados:', result.rows);
+            
+            await client.end();
+            
+            res.json(result.rows);
+            
+        } catch (error) {
+            console.log('Erro no PostgreSQL, usando SQLite fallback:', error.message);
+            
+            // Fallback para SQLite
+            const query = `
+                SELECT fp.*, f.nome as nome_funcionario 
+                FROM folha_pagamento fp 
+                LEFT JOIN funcionarios f ON fp.id_funcionario = f.id
+                WHERE fp.mes_referencia = ?
+                ORDER BY f.nome ASC
+            `;
+            
+            db.all(query, [mes], (err, rows) => {
+                if (err) {
+                    console.error('Erro no SQLite fallback:', err);
+                    return res.status(500).json({ error: err.message });
+                }
+                console.log('Folha de pagamento encontrada no SQLite fallback:', rows?.length || 0);
+                console.log('Dados SQLite:', rows);
+                res.json(rows);
+            });
+        }
+    } else {
+        // Usar SQLite local
+        console.log('Usando SQLite local para folha de pagamento...');
+        const query = `
+            SELECT fp.*, f.nome as nome_funcionario 
+            FROM folha_pagamento fp 
+            LEFT JOIN funcionarios f ON fp.id_funcionario = f.id
+            WHERE fp.mes_referencia = ?
+            ORDER BY f.nome ASC
+        `;
+        
+        db.all(query, [mes], (err, rows) => {
+            if (err) {
+                console.error('Erro no SQLite local:', err);
+                res.status(500).json({ error: err.message });
+                return;
+            }
+            console.log('Folha de pagamento encontrada no SQLite local:', rows?.length || 0);
+            console.log('Dados SQLite local:', rows);
+            res.json(rows);
+        });
+    }
+});
+
+// POST folha-pagamento
+app.post('/api/folha-pagamento', async (req, res) => {
+    console.log('=== POST /api/folha-pagamento ===');
+    console.log('Dados recebidos:', req.body);
+    
+    try {
+        const { id_funcionario, mes_referencia, salario_base, comissoes, bonus, total, detalhe_comissoes } = req.body;
+        
+        // Validação básica
+        if (!id_funcionario || !mes_referencia || salario_base === undefined || comissoes === undefined || bonus === undefined || total === undefined) {
+            console.log('Erro: Campos obrigatórios faltando');
+            return res.status(400).json({ error: 'Todos os campos são obrigatórios' });
+        }
+        
+        if (useSupabase) {
+            // Usar PostgreSQL direto
+            console.log('Inserindo folha de pagamento no PostgreSQL...');
+            const { Client } = require('pg');
+            
+            try {
+                // Usar o endpoint correto do pooler
+                const poolerUrl = databaseUrl.replace(
+                    'postgresql://postgres:tiVW2cmpeVStByLm@db.yuwddqxdnyjvilbmjooc.supabase.co:5432/postgres',
+                    'postgresql://postgres.yuwddqxdnyjvilbmjooc:tiVW2cmpeVStByLm@aws-1-sa-east-1.pooler.supabase.com:6543/postgres'
+                );
+                
+                const client = new Client({
+                    connectionString: poolerUrl,
+                    ssl: { rejectUnauthorized: false },
+                    connectionTimeoutMillis: 10000,
+                    query_timeout: 10000
+                });
+                
+                await client.connect();
+                
+                // Verificar se funcionário existe e está ativo
+                const funcResult = await client.query('SELECT id, nome, ativo FROM funcionarios WHERE id = $1', [id_funcionario]);
+                
+                if (funcResult.rows.length === 0) {
+                    console.error('Funcionário não encontrado:', id_funcionario);
+                    await client.end();
+                    return res.status(400).json({ error: 'Funcionário não encontrado' });
+                }
+                
+                if (!funcResult.rows[0].ativo) {
+                    console.error('Funcionário está inativo:', id_funcionario);
+                    await client.end();
+                    return res.status(400).json({ error: 'Funcionário está inativo' });
+                }
+                
+                // Inserir folha de pagamento
+                const result = await client.query(
+                    `INSERT INTO folha_pagamento (id_funcionario, mes_referencia, salario_base, comissoes, bonus, total, detalhe_comissoes) 
+                     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+                    [id_funcionario, mes_referencia, salario_base, comissoes, bonus, total, detalhe_comissoes || null]
+                );
+                
+                console.log('Folha de pagamento inserida no PostgreSQL:', result.rows[0]);
+                await client.end();
+                
+                // Adicionar nome do funcionário na resposta
+                const folhaResponse = {
+                    ...result.rows[0],
+                    nome_funcionario: funcResult.rows[0].nome
+                };
+                
+                res.json(folhaResponse);
+                
+            } catch (pgError) {
+                console.log('PostgreSQL falhou, usando SQLite fallback:', pgError.message);
+                
+                // Fallback para SQLite
+                db.get('SELECT id, nome, ativo FROM funcionarios WHERE id = ?', [id_funcionario], (err, row) => {
+                    if (err) {
+                        console.error('Erro ao verificar funcionário:', err);
+                        return res.status(500).json({ error: err.message });
+                    }
+                    
+                    if (!row) {
+                        console.error('Funcionário não encontrado:', id_funcionario);
+                        return res.status(400).json({ error: 'Funcionário não encontrado' });
+                    }
+                    
+                    if (!row.ativo) {
+                        console.error('Funcionário está inativo:', id_funcionario);
+                        return res.status(400).json({ error: 'Funcionário está inativo' });
+                    }
+                    
+                    // Inserir folha de pagamento
+                    const sql = 'INSERT INTO folha_pagamento (id_funcionario, mes_referencia, salario_base, comissoes, bonus, total, detalhe_comissoes) VALUES (?, ?, ?, ?, ?, ?, ?)';
+                    const params = [id_funcionario, mes_referencia, salario_base, comissoes, bonus, total, detalhe_comissoes || null];
+                    
+                    db.run(sql, params, function(err) {
+                        if (err) {
+                            console.error('Erro ao inserir folha de pagamento:', err);
+                            return res.status(500).json({ error: err.message });
+                        }
+                        console.log('Folha de pagamento inserida com ID:', this.lastID);
+                        res.json({ 
+                            id: this.lastID, 
+                            id_funcionario, 
+                            mes_referencia, 
+                            salario_base, 
+                            comissoes, 
+                            bonus, 
+                            total,
+                            detalhe_comissoes: detalhe_comissoes || null,
+                            nome_funcionario: row.nome
+                        });
+                    });
+                });
+            }
+        } else {
+            // Usar SQLite local
+            db.get('SELECT id, nome, ativo FROM funcionarios WHERE id = ?', [id_funcionario], (err, row) => {
+                if (err) {
+                    console.error('Erro ao verificar funcionário:', err);
+                    return res.status(500).json({ error: err.message });
+                }
+                
+                if (!row) {
+                    console.error('Funcionário não encontrado:', id_funcionario);
+                    return res.status(400).json({ error: 'Funcionário não encontrado' });
+                }
+                
+                if (!row.ativo) {
+                    console.error('Funcionário está inativo:', id_funcionario);
+                    return res.status(400).json({ error: 'Funcionário está inativo' });
+                }
+                
+                // Inserir folha de pagamento
+                const sql = 'INSERT INTO folha_pagamento (id_funcionario, mes_referencia, salario_base, comissoes, bonus, total, detalhe_comissoes) VALUES (?, ?, ?, ?, ?, ?, ?)';
+                const params = [id_funcionario, mes_referencia, salario_base, comissoes, bonus, total, detalhe_comissoes || null];
+                
+                db.run(sql, params, function(err) {
+                    if (err) {
+                        console.error('Erro ao inserir folha de pagamento:', err);
+                        return res.status(500).json({ error: err.message });
+                    }
+                    console.log('Folha de pagamento inserida com ID:', this.lastID);
+                    res.json({ 
+                        id: this.lastID, 
+                        id_funcionario, 
+                        mes_referencia, 
+                        salario_base, 
+                        comissoes, 
+                        bonus, 
+                        total,
+                        detalhe_comissoes: detalhe_comissoes || null,
+                        nome_funcionario: row.nome
+                    });
+                });
+            });
+        }
+    } catch (error) {
+        console.error('Erro geral:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// DELETE folha-pagamento
+app.delete('/api/folha-pagamento/:mes', async (req, res) => {
+    console.log('=== DELETE /api/folha-pagamento/:mes ===');
+    console.log('Mês:', req.params.mes);
+    
+    try {
+        const { mes } = req.params;
+        
+        if (useSupabase) {
+            // Usar PostgreSQL direto
+            console.log('Excluindo folha de pagamento no PostgreSQL...');
+            const { Client } = require('pg');
+            
+            try {
+                const poolerUrl = databaseUrl.replace(
+                    'postgresql://postgres:tiVW2cmpeVStByLm@db.yuwddqxdnyjvilbmjooc.supabase.co:5432/postgres',
+                    'postgresql://postgres.yuwddqxdnyjvilbmjooc:tiVW2cmpeVStByLm@aws-1-sa-east-1.pooler.supabase.com:6543/postgres'
+                );
+                
+                const client = new Client({
+                    connectionString: poolerUrl,
+                    ssl: { rejectUnauthorized: false },
+                    connectionTimeoutMillis: 10000,
+                    query_timeout: 10000
+                });
+                
+                await client.connect();
+                
+                const result = await client.query('DELETE FROM folha_pagamento WHERE mes_referencia = $1 RETURNING *', [mes]);
+                
+                console.log('Folha de pagamento excluída no PostgreSQL:', result.rows.length, 'registros');
+                await client.end();
+                
+                res.json({ message: 'Folha de pagamento excluída com sucesso!' });
+                
+            } catch (pgError) {
+                console.log('PostgreSQL falhou, usando SQLite fallback:', pgError.message);
+                
+                // Fallback para SQLite
+                db.run('DELETE FROM folha_pagamento WHERE mes_referencia = ?', [mes], function(err) {
+                    if (err) {
+                        console.error('Erro ao excluir folha de pagamento:', err);
+                        return res.status(500).json({ error: err.message });
+                    }
+                    console.log('Folha de pagamento excluída para o mês:', mes);
+                    res.json({ message: 'Folha de pagamento excluída com sucesso!' });
+                });
+            }
+        } else {
+            // Usar SQLite local
+            db.run('DELETE FROM folha_pagamento WHERE mes_referencia = ?', [mes], function(err) {
+                if (err) {
+                    console.error('Erro ao excluir folha de pagamento:', err);
+                    return res.status(500).json({ error: err.message });
+                }
+                console.log('Folha de pagamento excluída para o mês:', mes);
+                res.json({ message: 'Folha de pagamento excluída com sucesso!' });
+            });
+        }
+    } catch (error) {
+        console.error('Erro geral:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Iniciar servidor
 app.listen(PORT, async () => {
     console.log(`Servidor ERP rodando em http://localhost:${PORT}`);
