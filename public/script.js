@@ -1,15 +1,32 @@
 const API_BASE = '';
 
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('=== DOM CARREGADO ===');
+    
     setupNavigation();
     setupModals();
-    carregarMeses();
-    carregarDashboard();
+    
+    // Aguardar um pouco para garantir que os elementos estejam disponíveis
+    setTimeout(() => {
+        console.log('=== INICIANDO CARREGAMENTO DE DADOS ===');
+        carregarMeses();
+        carregarFuncionariosHolerite();
+        carregarDashboard();
+    }, 100);
     
     // Definir data atual para os formulários
     const hoje = new Date().toISOString().split('T')[0];
-    document.getElementById('venda-data').value = hoje;
-    document.getElementById('producao-data').value = hoje;
+    
+    // Verificar se os elementos existem antes de definir valores
+    const vendaData = document.getElementById('venda-data');
+    if (vendaData) {
+        vendaData.value = hoje;
+    }
+    
+    const producaoData = document.getElementById('producao-data');
+    if (producaoData) {
+        producaoData.value = hoje;
+    }
     
     // Setup do formulário de funcionários
     setupFuncionarioForm();
@@ -79,7 +96,7 @@ function toggleCamposFuncionario(tipo) {
 }
 
 function setupNavigation() {
-    document.querySelectorAll('.sidebar .nav-link').forEach(link => {
+    document.querySelectorAll('.nav .nav-link').forEach(link => {
         link.addEventListener('click', function(e) {
             e.preventDefault();
             console.log('Clicou no link:', this);
@@ -95,7 +112,7 @@ function setupNavigation() {
             
             showPage(page);
             
-            document.querySelectorAll('.sidebar .nav-link').forEach(l => l.classList.remove('active'));
+            document.querySelectorAll('.nav .nav-link').forEach(l => l.classList.remove('active'));
             this.classList.add('active');
             
             switch(page) {
@@ -113,6 +130,9 @@ function setupNavigation() {
                     break;
                 case 'folha-pagamento':
                     carregarFolhaPagamento();
+                    break;
+                case 'holerite':
+                    carregarFuncionariosHolerite();
                     break;
             }
         });
@@ -170,33 +190,49 @@ function setupFormFuncionario() {
 }
 
 function setupModals() {
-    document.getElementById('modalFuncionario').addEventListener('show.bs.modal', function() {
-        document.getElementById('form-funcionario').reset();
-    });
+    const modalFuncionario = document.getElementById('modalFuncionario');
+    if (modalFuncionario) {
+        modalFuncionario.addEventListener('show.bs.modal', function() {
+            document.getElementById('form-funcionario').reset();
+        });
+    }
     
-    document.getElementById('modalVenda').addEventListener('show.bs.modal', function() {
-        carregarVendedoras();
-        document.getElementById('form-venda').reset();
-        const hoje = new Date().toISOString().split('T')[0];
-        document.getElementById('venda-data').value = hoje;
-        
-        // Resetar para modo cadastro
-        resetModalVenda();
-    });
+    const modalVenda = document.getElementById('modalVenda');
+    if (modalVenda) {
+        modalVenda.addEventListener('show.bs.modal', function() {
+            carregarVendedoras();
+            document.getElementById('form-venda').reset();
+            const hoje = new Date().toISOString().split('T')[0];
+            document.getElementById('venda-data').value = hoje;
+            
+            // Resetar para modo cadastro
+            resetModalVenda();
+        });
+    }
     
-    document.getElementById('modalProducao').addEventListener('show.bs.modal', function() {
-        carregarProducaoFuncionarios();
-        document.getElementById('form-producao').reset();
-        const hoje = new Date().toISOString().split('T')[0];
-        document.getElementById('producao-data').value = hoje;
-        
-        // Resetar para modo cadastro
-        resetModalProducao();
-    });
+    const modalProducao = document.getElementById('modalProducao');
+    if (modalProducao) {
+        modalProducao.addEventListener('show.bs.modal', function() {
+            carregarProducaoFuncionarios();
+            document.getElementById('form-producao').reset();
+            const hoje = new Date().toISOString().split('T')[0];
+            document.getElementById('producao-data').value = hoje;
+            
+            // Resetar para modo cadastro
+            resetModalProducao();
+        });
+    }
 }
 
 function carregarMeses() {
+    console.log('=== CARREGANDO MESES ===');
     const select = document.getElementById('mes-folha');
+    
+    if (!select) {
+        console.error('Elemento mes-folha não encontrado!');
+        return;
+    }
+    
     const meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 
                    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
     const anoAtual = new Date().getFullYear();
@@ -223,6 +259,8 @@ function carregarMeses() {
         
         select.appendChild(option);
     }
+    
+    console.log('Meses carregados com sucesso! Total de opções:', select.options.length - 1);
 }
 
 async function carregarDashboard() {
@@ -434,6 +472,7 @@ async function salvarFuncionario() {
                 comissao_maquina_pequena: tipo === 'vendedora' ? comissaoPequena : 0,
                 comissao_extra_desconto: tipo === 'vendedora' ? comissaoExtra : 0,
                 meta_maquinas: tipo === 'vendedora' ? meta : 0,
+                premio_meta: tipo === 'vendedora' ? premioMeta : 0,
                 bonus_meta: tipo === 'vendedora' ? bonusMeta : 0,
                 salario_base: tipo === 'producao' ? salario : 0,
                 comissao_maquina_producao: tipo === 'producao' ? comissaoProducao : 0
@@ -495,6 +534,10 @@ async function salvarVenda() {
     
     try {
         console.log('Enviando requisição para /api/vendas...');
+        // Extrair mês da data (formato YYYY-MM)
+        const mes = data.substring(0, 7); // Assume data no formato YYYY-MM-DD
+        console.log('Mês extraído da data:', mes);
+        
         const response = await fetch(`${API_BASE}/api/vendas`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -503,7 +546,8 @@ async function salvarVenda() {
                 tipo_maquina: tipoMaquina,
                 quantidade_maquinas: quantidade,
                 com_desconto: comDesconto,
-                data_venda: data
+                data_venda: data,
+                mes: mes
             })
         });
         
@@ -568,25 +612,105 @@ async function apagarFolhaExistente() {
         return;
     }
     
-    if (!confirm(`Tem certeza que deseja apagar a folha de pagamento de ${formatarMes(mes)}?`)) {
-        return;
-    }
-    
+    // Verificar se existe folha para este mês
     try {
-        const response = await fetch(`${API_BASE}/api/folha-pagamento/${mes}`, {
-            method: 'DELETE'
-        });
+        console.log('Verificando folha existente antes de apagar...');
+        const checkResponse = await fetch(`${API_BASE}/api/folha-pagamento/${mes}`);
+        const folhaExistente = await checkResponse.json();
         
-        if (response.ok) {
-            const result = await response.json();
-            alert(`Folha apagada com sucesso! ${result.registros_removidos} registros removidos.`);
-            carregarFolhaPagamento(); // Recarregar a tabela
-        } else {
-            alert('Erro ao apagar folha!');
+        if (folhaExistente.length === 0) {
+            alert(`ATENÇÃO: Não existe folha de pagamento para ${formatarMes(mes)}!\n\n` +
+                  `Não há nada para apagar.`);
+            return;
         }
+        
+        // Mostrar resumo antes de apagar
+        const totalRegistros = folhaExistente.length;
+        const totalVendedoras = folhaExistente.filter(f => f.tipo === 'vendedora').length;
+        const totalProducao = folhaExistente.filter(f => f.tipo === 'producao').length;
+        const totalGeral = folhaExistente.reduce((sum, f) => sum + f.total, 0);
+        
+        const confirmacao = confirm(
+            `ATENÇÃO: Esta ação irá APAGAR permanentemente a folha de pagamento!\n\n` +
+            `Resumo da folha de ${formatarMes(mes)}:\n` +
+            `- Total de registros: ${totalRegistros}\n` +
+            `- Vendedoras: ${totalVendedoras}\n` +
+            `- Produção: ${totalProducao}\n` +
+            `- Valor total: R$ ${totalGeral.toFixed(2)}\n\n` +
+            `Esta ação é IRREVERSÍVEL!\n\n` +
+            `Todos os holerites gerados para este mês deixarão de funcionar.\n\n` +
+            `Digite "SIM" para confirmar a exclusão:`
+        );
+        
+        if (confirmacao !== true) {
+            return;
+        }
+        
+        // Segunda confirmação com texto específico
+        const confirmacaoFinal = prompt(
+            `CONFIRMAÇÃO FINAL\n\n` +
+            `Para apagar a folha de ${formatarMes(mes)},\n` +
+            `digite exatamente: APAGAR FOLHA`
+        );
+        
+        if (confirmacaoFinal !== 'APAGAR FOLHA') {
+            alert('Operação cancelada. Texto de confirmação incorreto.');
+            return;
+        }
+        
+        // Buscar o botão pelo seletor
+        const botao = document.querySelector('button[onclick="apagarFolhaExistente()"]');
+        const textoOriginal = botao ? botao.innerHTML : '<i class="bi bi-trash"></i> Apagar Folha';
+        
+        if (botao) {
+            botao.disabled = true;
+            botao.innerHTML = '<i class="bi bi-hourglass-split"></i> Apagando...';
+        }
+        
+        try {
+            const response = await fetch(`${API_BASE}/api/folha-pagamento/${mes}`, {
+                method: 'DELETE'
+            });
+            
+            if (response.ok) {
+                const result = await response.json();
+                
+                // Log de auditoria
+                console.log('AUDITORIA: Folha apagada', {
+                    mes: mes,
+                    registros_removidos: result.registros_removidos || totalRegistros,
+                    valor_total: totalGeral,
+                    data_hora: new Date().toISOString()
+                });
+                
+                alert(
+                    `Folha de pagamento apagada com sucesso!\n\n` +
+                    `Resumo da operação:\n` +
+                    `- Registros removidos: ${result.registros_removidos || totalRegistros}\n` +
+                    `- Valor total removido: R$ ${totalGeral.toFixed(2)}\n\n` +
+                    `Todos os holerites deste mês foram invalidados.`
+                );
+                
+                carregarFolhaPagamento(); // Recarregar a tabela
+            } else {
+                const erro = await response.json();
+                console.error('Erro ao apagar folha:', erro);
+                alert(`Erro ao apagar folha!\n\n${erro.error || 'Tente novamente.'}`);
+            }
+        } catch (error) {
+            console.error('Erro ao apagar folha:', error);
+            alert('Erro ao apagar folha!\n\nVerifique sua conexão e tente novamente.');
+        } finally {
+            // Reabilitar botão
+            if (botao) {
+                botao.disabled = false;
+                botao.innerHTML = textoOriginal;
+            }
+        }
+        
     } catch (error) {
-        console.error('Erro ao apagar folha:', error);
-        alert('Erro ao apagar folha!');
+        console.error('Erro ao verificar folha existente:', error);
+        alert('Erro ao verificar folha existente!\n\nTente novamente.');
     }
 }
 
@@ -598,21 +722,108 @@ async function gerarFolhaPagamento() {
         return;
     }
     
+    // Verificar se já existe folha para este mês
     try {
+        console.log('Verificando se já existe folha para o mês:', mes);
+        const checkResponse = await fetch(`${API_BASE}/api/folha-pagamento/${mes}`);
+        const folhaExistente = await checkResponse.json();
+        
+        if (folhaExistente.length > 0) {
+            const totalRegistros = folhaExistente.length;
+            const totalVendedoras = folhaExistente.filter(f => f.tipo === 'vendedora').length;
+            const totalProducao = folhaExistente.filter(f => f.tipo === 'producao').length;
+            const totalGeral = folhaExistente.reduce((sum, f) => sum + f.total, 0);
+            
+            const confirmacao = confirm(
+                `ATENÇÃO: Já existe folha de pagamento para ${formatarMes(mes)}!\n\n` +
+                `Registros existentes:\n` +
+                `- Vendedoras: ${totalVendedoras}\n` +
+                `- Produção: ${totalProducao}\n` +
+                `- Total geral: R$ ${totalGeral.toFixed(2)}\n\n` +
+                `Deseja APAGAR a folha existente e gerar uma nova?\n\n` +
+                `Isso irá recalcular todos os valores!`
+            );
+            
+            if (!confirmacao) {
+                return;
+            }
+            
+            // Apagar folha existente
+            console.log('Apagando folha existente...');
+            const deleteResponse = await fetch(`${API_BASE}/api/folha-pagamento/${mes}`, {
+                method: 'DELETE'
+            });
+            
+            if (!deleteResponse.ok) {
+                alert('Erro ao apagar folha existente!');
+                return;
+            }
+        }
+    } catch (error) {
+        console.error('Erro ao verificar folha existente:', error);
+    }
+    
+    // Mostrar confirmação final
+    const confirmacaoFinal = confirm(
+        `CONFIRMAÇÃO DE GERAÇÃO DE FOLHA DE PAGAMENTO\n\n` +
+        `Mês: ${formatarMes(mes)}\n\n` +
+        `Esta ação irá:\n` +
+        `1. Calcular comissões baseadas em vendas/produção\n` +
+        `2. Calcular bônus para vendedoras\n` +
+        `3. Gerar folha para todos os funcionários ativos\n` +
+        `4. Salvar no banco de dados\n\n` +
+        `Deseja continuar?`
+    );
+    
+    if (!confirmacaoFinal) {
+        return;
+    }
+    
+    // Buscar o botão pelo seletor
+    const botao = document.querySelector('button[onclick="gerarFolhaPagamento()"]');
+    const textoOriginal = botao ? botao.innerHTML : '<i class="bi bi-calculator"></i> Gerar Folha';
+    
+    try {
+        console.log('Gerando folha de pagamento para o mês:', mes);
+        
+        if (botao) {
+            botao.disabled = true;
+            botao.innerHTML = '<i class="bi bi-hourglass-split"></i> Processando...';
+        }
+        
         const response = await fetch(`${API_BASE}/api/gerar-folha/${mes}`, {
             method: 'POST'
         });
         
         if (response.ok) {
+            const resultado = await response.json();
+            console.log('Folha gerada com sucesso:', resultado);
+            
             carregarFolhaPagamento();
-            alert('Folha de pagamento gerada com sucesso!');
+            
+            // Mostrar resumo do resultado
+            alert(
+                `Folha de pagamento gerada com sucesso!\n\n` +
+                `Resumo:\n` +
+                `- Total de funcionários: ${resultado.total_funcionarios || 'N/A'}\n` +
+                `- Valor total: R$ ${(resultado.valor_total || 0).toFixed(2)}\n\n` +
+                `Verifique os detalhes na tabela abaixo.`
+            );
         } else {
-            alert('Erro ao gerar folha de pagamento!');
+            const erro = await response.json();
+            console.error('Erro ao gerar folha:', erro);
+            alert(`Erro ao gerar folha de pagamento!\n\n${erro.error || 'Tente novamente.'}`);
         }
         
     } catch (error) {
         console.error('Erro ao gerar folha:', error);
-        alert('Erro ao gerar folha de pagamento!');
+        alert('Erro ao gerar folha de pagamento!\n\nVerifique sua conexão e tente novamente.');
+    } finally {
+        // Reabilitar botão
+        if (botao) {
+            botao.disabled = false;
+            botao.innerHTML = textoOriginal;
+        }
     }
 }
 
@@ -766,6 +977,7 @@ function editarFuncionario(id) {
                 document.getElementById('func-comissao-pequena').value = funcionario.comissao_maquina_pequena || 250;
                 document.getElementById('func-comissao-extra').value = funcionario.comissao_extra_desconto || 100;
                 document.getElementById('func-meta').value = funcionario.meta_maquinas || 10;
+                document.getElementById('func-premio-meta').value = funcionario.premio_meta || 1000;
                 document.getElementById('func-bonus-meta').value = funcionario.bonus_meta || 1000;
                 document.getElementById('func-salario').value = funcionario.salario_base || 0;
                 document.getElementById('func-comissao-producao').value = funcionario.comissao_maquina_producao || 100;
@@ -799,6 +1011,7 @@ async function atualizarFuncionario(id) {
     const comissaoPequena = parseFloat(document.getElementById('func-comissao-pequena').value) || 250;
     const comissaoExtra = parseFloat(document.getElementById('func-comissao-extra').value) || 100;
     const meta = parseInt(document.getElementById('func-meta').value) || 10;
+    const premioMeta = parseFloat(document.getElementById('func-premio-meta').value) || 1000;
     const bonusMeta = parseFloat(document.getElementById('func-bonus-meta').value) || 1000;
     const salario = parseFloat(document.getElementById('func-salario').value) || 0;
     const comissaoProducao = parseFloat(document.getElementById('func-comissao-producao').value) || 100;
@@ -819,6 +1032,7 @@ async function atualizarFuncionario(id) {
                 comissao_maquina_pequena: tipo === 'vendedora' ? comissaoPequena : 0,
                 comissao_extra_desconto: tipo === 'vendedora' ? comissaoExtra : 0,
                 meta_maquinas: tipo === 'vendedora' ? meta : 0,
+                premio_meta: tipo === 'vendedora' ? premioMeta : 0,
                 bonus_meta: tipo === 'vendedora' ? bonusMeta : 0,
                 salario_base: tipo === 'producao' ? salario : 0,
                 comissao_maquina_producao: tipo === 'producao' ? comissaoProducao : 0
@@ -1378,3 +1592,754 @@ async function desativarFuncionario(id) {
         }
     }
 }
+
+// Funções do Holerite
+async function carregarFuncionariosHolerite() {
+    try {
+        const response = await fetch(`${API_BASE}/api/funcionarios`);
+        const funcionarios = await response.json();
+        
+        const select = document.getElementById('holerite-funcionario');
+        select.innerHTML = '<option value="">Selecione o funcionário...</option>';
+        
+        funcionarios.filter(f => f.ativo).forEach(func => {
+            select.innerHTML += `<option value="${func.id}">${func.nome}</option>`;
+        });
+        
+        // Carregar meses disponíveis
+        carregarMesesHolerite();
+    } catch (error) {
+        console.error('Erro ao carregar funcionários:', error);
+    }
+}
+
+async function carregarMesesHolerite() {
+    console.log('=== CARREGANDO MESES HOLERITE ===');
+    const select = document.getElementById('holerite-mes');
+    
+    if (!select) {
+        console.error('Elemento holerite-mes não encontrado!');
+        return;
+    }
+    
+    select.innerHTML = '<option value="">Selecione o mês...</option>';
+    
+    // Carrega últimos 6 meses
+    const dataAtual = new Date();
+    for (let i = 0; i < 6; i++) {
+        const data = new Date(dataAtual.getFullYear(), dataAtual.getMonth() - i, 1);
+        const mes = data.toISOString().slice(0, 7);
+        const mesesNome = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+        const mesExtenso = `${mesesNome[data.getMonth()]}/${data.getFullYear()}`;
+        select.innerHTML += `<option value="${mes}">${mesExtenso}</option>`;
+    }
+    
+    console.log('Meses do holerite carregados com sucesso! Total de opções:', select.options.length - 1);
+}
+
+async function gerarHolerite() {
+    console.log('=== INÍCIO GERAR HOLERITE ===');
+    const idFuncionario = document.getElementById('holerite-funcionario').value;
+    const mes = document.getElementById('holerite-mes').value;
+    
+    console.log('ID Funcionário:', idFuncionario);
+    console.log('Mês:', mes);
+    
+    if (!idFuncionario || !mes) {
+        alert('Selecione o funcionário e o mês!');
+        return;
+    }
+    
+    // Buscar o botão pelo seletor
+    const botao = document.querySelector('button[onclick="gerarHolerite()"]');
+    const textoOriginal = botao ? botao.innerHTML : '<i class="bi bi-file-pdf"></i> Gerar Holerite';
+    
+    try {
+        // Verificar se existe folha para este mês
+        console.log('Verificando se existe folha para o mês:', mes);
+        const folhaResponse = await fetch(`${API_BASE}/api/folha-pagamento/${mes}`);
+        const folhas = await folhaResponse.json();
+        
+        if (folhas.length === 0) {
+            alert(`ATENÇÃO: Não existe folha de pagamento para ${formatarMes(mes)}!\n\n` +
+                  `Gere a folha de pagamento primeiro na aba "Folha de Pagamento".`);
+            return;
+        }
+        
+        // Buscar dados do funcionário
+        console.log('Buscando funcionário...');
+        const funcResponse = await fetch(`${API_BASE}/api/funcionarios/${idFuncionario}`);
+        
+        if (!funcResponse.ok) {
+            alert('Funcionário não encontrado!');
+            return;
+        }
+        
+        const funcionario = await funcResponse.json();
+        console.log('Funcionário encontrado:', funcionario);
+        
+        // Buscar dados de vendas para calcular o número de máquinas vendidas
+        let totalMaquinas = 0;
+        if (funcionario.tipo === 'vendedora') {
+            const vendasResponse = await fetch(`${API_BASE}/api/vendas`);
+            const vendas = await vendasResponse.json();
+            console.log('Todas as vendas:', vendas);
+            console.log('Filtrando vendas do funcionário', idFuncionario, 'para o mês', mes);
+            console.log('Mostrando formato do mês em cada venda:');
+            vendas.forEach(v => {
+                console.log(`Venda ID: ${v.id}, Funcionário: ${v.id_funcionario}, Mês: "${v.mes}" (tipo: ${typeof v.mes})`);
+            });
+            const vendasFuncionario = vendas.filter(v => v.id_funcionario == idFuncionario && v.mes === mes);
+            console.log('Vendas do funcionário no mês:', vendasFuncionario);
+            totalMaquinas = vendasFuncionario.reduce((sum, v) => sum + v.quantidade_maquinas, 0);
+            console.log('Total de máquinas vendidas:', totalMaquinas);
+        }
+        
+        // Encontrar folha do funcionário
+        const folhaFuncionario = folhas.find(f => f.id_funcionario == idFuncionario);
+        console.log('Folha do funcionário:', folhaFuncionario);
+        
+        if (!folhaFuncionario) {
+            const nomeFuncionario = document.querySelector(`#holerite-funcionario option[value="${idFuncionario}"]`)?.text || 'Funcionário';
+            alert(`ATENÇÃO: Não há folha de pagamento para ${nomeFuncionario} em ${formatarMes(mes)}!\n\n` +
+                  `Verifique se o funcionário está ativo e se a folha foi gerada corretamente.`);
+            return;
+        }
+        
+        // Mostrar preview dos dados antes de gerar
+        const totalProventos = folhaFuncionario.salario_base + folhaFuncionario.comissoes + (folhaFuncionario.bonus || 0);
+        const totalAjustes = folhaFuncionario.ajustes ? 
+            JSON.parse(folhaFuncionario.ajustes).reduce((sum, a) => sum + a.valor, 0) : 0;
+        const totalFinal = totalProventos + totalAjustes;
+        
+        const confirmacao = confirm(
+            `CONFIRMAÇÃO DE GERAÇÃO DE HOLERITE\n\n` +
+            `Dados do Documento:\n` +
+            ` Prestador: ${funcionario.nome}\n` +
+            ` Tipo: ${funcionario.tipo === 'vendedora' ? 'VENDEDOR' : 'PRODUÇÃO'}\n` +
+            ` Mês: ${formatarMes(mes)}\n\n` +
+            `Valores:\n` +
+            ` Honorários: R$ ${folhaFuncionario.salario_base.toFixed(2)}\n` +
+            ` Premiação Performance: R$ ${folhaFuncionario.comissoes.toFixed(2)}\n` +
+            ` Premiação Metas: R$ ${(folhaFuncionario.bonus || 0).toFixed(2)}\n` +
+            ` Ajustes: R$ ${totalAjustes.toFixed(2)}\n` +
+            ` Total Líquido: R$ ${totalFinal.toFixed(2)}\n\n` +
+            `Deseja gerar o holerite em PDF?`
+        );
+        
+        if (!confirmacao) {
+            return;
+        }
+        
+        if (botao) {
+            botao.disabled = true;
+            botao.innerHTML = '<i class="bi bi-hourglass-split"></i> Gerando PDF...';
+        }
+        
+        console.log('Exibindo dados na tabela...');
+        // Exibir dados na tabela
+        exibirHoleriteTabela(funcionario, folhaFuncionario);
+        
+        // Gerar PDF do holerite
+        console.log('Gerando PDF...');
+        await gerarPDFHolerite(funcionario, folhaFuncionario, mes, totalMaquinas);
+        
+        // Log de auditoria
+        console.log('AUDITORIA: Holerite gerado', {
+            funcionario: funcionario.nome,
+            id_funcionario: funcionario.id,
+            mes: mes,
+            total: totalFinal,
+            data_hora: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        console.error('Erro ao gerar holerite:', error);
+        alert('Erro ao gerar holerite!\n\nVerifique sua conexão e tente novamente.');
+    } finally {
+        // Reabilitar botão
+        if (botao) {
+            botao.disabled = false;
+            botao.innerHTML = textoOriginal;
+        }
+    }
+}
+
+function exibirHoleriteTabela(funcionario, folha) {
+    // Esconder mensagem
+    document.getElementById('mensagem-holerite').style.display = 'none';
+    
+    // Limpar tabelas
+    document.getElementById('tabela-holerite-vendedoras').innerHTML = '';
+    document.getElementById('tabela-holerite-producao').innerHTML = '';
+    
+    if (funcionario.tipo === 'vendedora') {
+        // Mostrar card de vendedoras
+        document.getElementById('card-holerite-vendedoras').style.display = 'block';
+        document.getElementById('card-holerite-producao').style.display = 'none';
+        
+        // Adicionar linha na tabela de vendedoras
+        const tbody = document.getElementById('tabela-holerite-vendedoras');
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${funcionario.nome}</td>
+            <td>R$ ${folha.salario_base.toFixed(2)}</td>
+            <td>R$ ${folha.comissoes.toFixed(2)}</td>
+            <td>R$ ${folha.bonus.toFixed(2)}</td>
+            <td><strong>R$ ${folha.total.toFixed(2)}</strong></td>
+            <td>
+                <button class="btn btn-sm btn-success" onclick="gerarPDFHolerite(${JSON.stringify(funcionario).replace(/"/g, '&quot;')}, ${JSON.stringify(folha).replace(/"/g, '&quot;')}, '${folha.mes_referencia}')">
+                    <i class="bi bi-file-pdf"></i> PDF
+                </button>
+            </td>
+        `;
+        tbody.appendChild(row);
+        
+    } else if (funcionario.tipo === 'producao') {
+        // Mostrar card de produção
+        document.getElementById('card-holerite-vendedoras').style.display = 'none';
+        document.getElementById('card-holerite-producao').style.display = 'block';
+        
+        // Adicionar linha na tabela de produção
+        const tbody = document.getElementById('tabela-holerite-producao');
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${funcionario.nome}</td>
+            <td>R$ ${folha.salario_base.toFixed(2)}</td>
+            <td>R$ ${folha.comissoes.toFixed(2)}</td>
+            <td><strong>R$ ${folha.total.toFixed(2)}</strong></td>
+            <td>
+                <button class="btn btn-sm btn-success" onclick="gerarPDFHolerite(${JSON.stringify(funcionario).replace(/"/g, '&quot;')}, ${JSON.stringify(folha).replace(/"/g, '&quot;')}, '${folha.mes_referencia}')">
+                    <i class="bi bi-file-pdf"></i> PDF
+                </button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    }
+}
+
+let ajustesTemp = [];
+let folhaAtual = null;
+
+function adicionarAjuste() {
+    const tipo = document.getElementById('ajuste-tipo').value;
+    const valor = parseFloat(document.getElementById('ajuste-valor').value) || 0;
+    const descricao = document.getElementById('ajuste-descricao').value;
+    
+    if (valor === 0) {
+        alert('Por favor, insira um valor válido!');
+        return;
+    }
+    
+    ajustesTemp.push({
+        tipo,
+        valor,
+        descricao
+    });
+    
+    // Limpar campos
+    document.getElementById('ajuste-valor').value = '';
+    document.getElementById('ajuste-descricao').value = '';
+    
+    // Atualizar tabela
+    atualizarTabelaAjustes();
+}
+
+function removerAjuste(index) {
+    ajustesTemp.splice(index, 1);
+    atualizarTabelaAjustes();
+}
+
+function atualizarTabelaAjustes() {
+    const tbody = document.getElementById('tabela-ajustes');
+    tbody.innerHTML = '';
+    
+    ajustesTemp.forEach((ajuste, index) => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${ajuste.tipo}</td>
+            <td>R$ ${ajuste.valor.toFixed(2)}</td>
+            <td>${ajuste.descricao || '-'}</td>
+            <td>
+                <button class="btn btn-sm btn-danger" onclick="removerAjuste(${index})">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+async function salvarAjustes() {
+    if (!folhaAtual) {
+        alert('Selecione um funcionário e mês primeiro!');
+        return;
+    }
+    
+    try {
+        const ajustesJSON = JSON.stringify(ajustesTemp);
+        
+        const response = await fetch(`${API_BASE}/api/folha-pagamento/${folhaAtual.id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                ajustes: ajustesJSON
+            })
+        });
+        
+        if (response.ok) {
+            alert('Ajustes salvos com sucesso!');
+            // Recarregar dados
+            carregarFuncionariosHolerite();
+        } else {
+            alert('Erro ao salvar ajustes!');
+        }
+    } catch (error) {
+        console.error('Erro ao salvar ajustes:', error);
+        alert('Erro ao salvar ajustes!');
+    }
+}
+
+async function carregarAjustes(folhaId) {
+    try {
+        const response = await fetch(`${API_BASE}/api/folha-pagamento/por-id/${folhaId}`);
+        const folha = await response.json();
+        
+        if (folha.ajustes) {
+            ajustesTemp = JSON.parse(folha.ajustes);
+        } else {
+            ajustesTemp = [];
+        }
+        
+        atualizarTabelaAjustes();
+        
+        // Mostrar card de ajustes
+        document.getElementById('card-ajustes').style.display = 'block';
+    } catch (error) {
+        console.error('Erro ao carregar ajustes:', error);
+    }
+}
+
+async function gerarPDFHolerite(funcionario, folha, mes, totalMaquinas = 0) {
+    console.log('=== Gerando PDF Holerite ===');
+    
+    const [ano, mesNum] = mes.split('-');
+    const meses = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+    const mesExtenso = meses[parseInt(mesNum) - 1];
+    
+    // Variáveis para cálculos
+    let totalAjustesProventos = 0;
+    let totalAjustesDescontos = 0;
+    let totalProventos = 0;
+    let totalDescontos = 0;
+    let totalLiquido = 0;
+    
+    // Criar PDF
+    const doc = new window.jspdf.jsPDF('p', 'mm', 'a4');
+    
+    // --- Configurações de Estilo ---
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "bold");
+    
+    // 1. Cabeçalho (Empregador e Título)
+    doc.rect(10, 10, 190, 20); // Borda externa superior
+    doc.text("EMPREGADOR", 12, 14);
+    doc.text("Nome: LIONS BRONZE", 12, 19);
+    doc.text("Endereço: Rua Candido Sales,202", 12, 23);
+    doc.text("CNPJ: 52.835.321/0001-00", 12, 27);
+    
+    doc.setFontSize(12); 
+    doc.text("Recibo de Pagamento de Prestação de Serviços", 100, 15);
+    doc.setFontSize(10);
+    doc.text(`${mesExtenso}-${ano.substring(2)}`, 175, 25);
+    
+    // 2. Dados do Prestador de Serviços
+    doc.rect(10, 30, 190, 15);
+    doc.setFontSize(7);
+    doc.text("CÓDIGO", 12, 34);
+    doc.text("PRESTADOR DE SERVIÇOS / EMPRESA", 30, 34);
+    doc.text("OBJETO DO CONTRATO", 150, 34);
+    
+    doc.setFontSize(9);
+    doc.text(funcionario.id.toString(), 12, 40);
+    doc.text(funcionario.nome, 30, 40);
+    doc.text(funcionario.tipo === 'vendedora' ? 'VENDEDOR' : 'PRODUÇÃO', 150, 40);
+    
+    // 3. Tabela de Proventos e Descontos
+    doc.rect(10, 45, 190, 100); // Corpo da tabela
+    doc.line(10, 52, 200, 52); // Linha do cabeçalho da tabela
+    
+    // Colunas da tabela
+    doc.text("Cód.", 12, 50);
+    doc.text("Descrição", 40, 50);
+    doc.text("Referência", 110, 50);
+    doc.text("Proventos", 140, 50);
+    doc.text("Descontos", 170, 50);
+    
+    // Linhas verticais separadoras
+    doc.line(25, 45, 25, 145);
+    doc.line(105, 45, 105, 145);
+    doc.line(135, 45, 135, 145);
+    doc.line(165, 45, 165, 145);
+    
+    // Preenchimento de Itens
+    doc.setFont("helvetica", "normal");
+    let yItem = 58;
+    
+    // Honorários Mensais
+    doc.text("001", 12, yItem);
+    doc.text("HONORÁRIOS MENSAL", 30, yItem);
+    doc.text(folha.salario_base.toFixed(2), 110, yItem);
+    doc.text(folha.salario_base.toFixed(2), 140, yItem);
+    yItem += 5;
+    
+    // Premiação por Performance
+    if (folha.comissoes > 0) {
+        doc.text("002", 12, yItem);
+        doc.text("COMISSÕES POR VENDAS", 30, yItem);
+        doc.text(folha.comissoes.toFixed(2), 110, yItem);
+        doc.text(folha.comissoes.toFixed(2), 140, yItem);
+        yItem += 5;
+    }
+    
+    // Prêmio por Meta (apenas para vendedoras) - multiplicado pelo número de vezes que bateu a meta
+    if (funcionario.tipo === 'vendedora' && folha.bonus > 0) {
+        const vezesBateuMeta = Math.floor(totalMaquinas / (funcionario.meta_maquinas || 10));
+        const premioTotal = vezesBateuMeta * (funcionario.premio_meta || 1000);
+        doc.text("003", 12, yItem);
+        doc.text("PRÊMIO POR META", 30, yItem);
+        doc.text(premioTotal.toFixed(2), 110, yItem);
+        doc.text(premioTotal.toFixed(2), 140, yItem);
+        yItem += 5;
+    }
+    
+    // Bônus por Meta (apenas para vendedoras) - ganha apenas uma vez quando bate a meta
+    if (funcionario.tipo === 'vendedora' && folha.bonus > 0 && totalMaquinas >= (funcionario.meta_maquinas || 10)) {
+        doc.text("004", 12, yItem);
+        doc.text("BÔNUS POR META", 30, yItem);
+        doc.text((funcionario.bonus_meta || 1000).toFixed(2), 110, yItem);
+        doc.text((funcionario.bonus_meta || 1000).toFixed(2), 140, yItem);
+        yItem += 5;
+    }
+    
+    // Ajustes
+    totalAjustesProventos = 0;
+    totalAjustesDescontos = 0;
+    
+    if (folha.ajustes) {
+        try {
+            const ajustes = JSON.parse(folha.ajustes);
+            ajustes.forEach((ajuste, index) => {
+                const codigo = 100 + index;
+                doc.text(codigo.toString(), 12, yItem);
+                doc.text(ajuste.tipo, 30, yItem);
+                doc.text(ajuste.valor.toFixed(2), 110, yItem);
+                
+                if (ajuste.valor > 0) {
+                    doc.text(ajuste.valor.toFixed(2), 140, yItem);
+                    totalAjustesProventos += ajuste.valor;
+                } else {
+                    doc.text(Math.abs(ajuste.valor).toFixed(2), 170, yItem);
+                    totalAjustesDescontos += Math.abs(ajuste.valor);
+                }
+                yItem += 5;
+            });
+        } catch (error) {
+            console.error('Erro ao parsear ajustes:', error);
+        }
+    }
+    
+    // 4. Rodapé de Valores
+    doc.rect(125, 145, 75, 15);
+    doc.setFont("helvetica", "bold");
+    
+    totalProventos = folha.salario_base + folha.comissoes + (folha.bonus || 0) + totalAjustesProventos;
+    totalDescontos = totalAjustesDescontos;
+    totalLiquido = totalProventos - totalDescontos;
+    
+    doc.text("Total dos Vencimentos", 127, 150);
+    doc.text(totalProventos.toFixed(2), 175, 150);
+    doc.text("Total dos Descontos", 127, 155);
+    doc.text(totalDescontos.toFixed(2), 175, 155);
+    doc.text("Líquido a Receber ->", 127, 163);
+    doc.text(totalLiquido.toFixed(2), 175, 163);
+    
+    // 5. Canhoto Lateral
+    doc.line(205, 10, 205, 160);
+    doc.setFontSize(6);
+    doc.text("DECLARO TER RECEBIDO A IMPORTÂNCIA LÍQUIDA DISCRIMINADA NESTE RECIBO.", 208, 10, {angle: 90});
+    
+    // Rodapé - Via Funcionário
+    yItem = 170;
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    doc.text("** 1ª VIA - FUNCIONÁRIO **", 105, yItem, { align: 'center' });
+    doc.setFont("helvetica", "normal");
+    yItem += 5;
+    doc.setFontSize(7);
+    doc.text(`Emitido em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}.`, 105, yItem, { align: 'center' });
+    
+    // Adicionar nova página para a via da empresa
+    doc.addPage();
+    
+    // --- Configurações de Estilo ---
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "bold");
+    
+    // 1. Cabeçalho (Empregador e Título)
+    doc.rect(10, 10, 190, 20); // Borda externa superior
+    doc.text("EMPREGADOR", 12, 14);
+    doc.text("Nome: LIONS BRONZE", 12, 19);
+    doc.text("Endereço: Rua XYZ, 10", 12, 23);
+    doc.text("CNPJ: 00.000.000/001-10", 12, 27);
+    
+    doc.setFontSize(12);
+    doc.text("Recibo de Pagamento de Prestação de Serviços", 100, 15);
+    doc.setFontSize(10);
+    doc.text(`${mesExtenso}-${ano.substring(2)}`, 175, 25);
+    
+    // 2. Dados do Prestador de Serviços
+    doc.rect(10, 30, 190, 15);
+    doc.setFontSize(7);
+    doc.text("CÓDIGO", 12, 34);
+    doc.text("PRESTADOR DE SERVIÇOS / EMPRESA", 30, 34);
+    doc.text("OBJETO DO CONTRATO", 150, 34);
+    
+    doc.setFontSize(9);
+    doc.text(funcionario.id.toString(), 12, 40);
+    doc.text(funcionario.nome, 30, 40);
+    doc.text(funcionario.tipo === 'vendedora' ? 'VENDEDOR' : 'PRODUÇÃO', 150, 40);
+    
+    // 3. Tabela de Proventos e Descontos
+    doc.rect(10, 45, 190, 100); // Corpo da tabela
+    doc.line(10, 52, 200, 52); // Linha do cabeçalho da tabela
+    
+    // Colunas da tabela
+    doc.text("Cód.", 12, 50);
+    doc.text("Descrição", 40, 50);
+    doc.text("Referência", 110, 50);
+    doc.text("Proventos", 140, 50);
+    doc.text("Descontos", 170, 50);
+    
+    // Linhas verticais separadoras
+    doc.line(25, 45, 25, 145);
+    doc.line(105, 45, 105, 145);
+    doc.line(135, 45, 135, 145);
+    doc.line(165, 45, 165, 145);
+    
+    // Preenchimento de Itens
+    doc.setFont("helvetica", "normal");
+    yItem = 58;
+    
+    // Honorários Mensais
+    doc.text("001", 12, yItem);
+    doc.text("HONORÁRIOS MENSAL", 30, yItem);
+    doc.text(folha.salario_base.toFixed(2), 110, yItem);
+    doc.text(folha.salario_base.toFixed(2), 140, yItem);
+    yItem += 5;
+    
+    // Premiação por Performance
+    if (folha.comissoes > 0) {
+        doc.text("002", 12, yItem);
+        doc.text("COMISSÕES POR VENDAS", 30, yItem);
+        doc.text(folha.comissoes.toFixed(2), 110, yItem);
+        doc.text(folha.comissoes.toFixed(2), 140, yItem);
+        yItem += 5;
+    }
+    
+    // Prêmio por Meta (apenas para vendedoras) - multiplicado pelo número de vezes que bateu a meta
+    if (funcionario.tipo === 'vendedora' && folha.bonus > 0) {
+        const vezesBateuMeta = Math.floor(totalMaquinas / (funcionario.meta_maquinas || 10));
+        const premioTotal = vezesBateuMeta * (funcionario.premio_meta || 1000);
+        doc.text("003", 12, yItem);
+        doc.text("PRÊMIO POR META", 30, yItem);
+        doc.text(premioTotal.toFixed(2), 110, yItem);
+        doc.text(premioTotal.toFixed(2), 140, yItem);
+        yItem += 5;
+    }
+    
+    // Bônus por Meta (apenas para vendedoras) - ganha apenas uma vez quando bate a meta
+    if (funcionario.tipo === 'vendedora' && folha.bonus > 0 && totalMaquinas >= (funcionario.meta_maquinas || 10)) {
+        doc.text("004", 12, yItem);
+        doc.text("BÔNUS POR META", 30, yItem);
+        doc.text((funcionario.bonus_meta || 1000).toFixed(2), 110, yItem);
+        doc.text((funcionario.bonus_meta || 1000).toFixed(2), 140, yItem);
+        yItem += 5;
+    }
+    
+    // Ajustes (segunda via - reutilizar variáveis)
+    totalAjustesProventos = 0;
+    totalAjustesDescontos = 0;
+    
+    if (folha.ajustes) {
+        try {
+            const ajustes = JSON.parse(folha.ajustes);
+            ajustes.forEach((ajuste, index) => {
+                const codigo = 100 + index;
+                doc.text(codigo.toString(), 12, yItem);
+                doc.text(ajuste.tipo, 30, yItem);
+                doc.text(ajuste.valor.toFixed(2), 110, yItem);
+                
+                if (ajuste.valor > 0) {
+                    doc.text(ajuste.valor.toFixed(2), 140, yItem);
+                    totalAjustesProventos += ajuste.valor;
+                } else {
+                    doc.text(Math.abs(ajuste.valor).toFixed(2), 170, yItem);
+                    totalAjustesDescontos += Math.abs(ajuste.valor);
+                }
+                yItem += 5;
+            });
+        } catch (error) {
+            console.error('Erro ao parsear ajustes:', error);
+        }
+    }
+    
+    // 4. Rodapé de Valores
+    doc.rect(125, 145, 75, 15);
+    doc.setFont("helvetica", "bold");
+    
+    totalProventos = folha.salario_base + folha.comissoes + (folha.bonus || 0) + totalAjustesProventos;
+    totalDescontos = totalAjustesDescontos;
+    totalLiquido = totalProventos - totalDescontos;
+    
+    doc.text("Total dos Vencimentos", 127, 150);
+    doc.text(totalProventos.toFixed(2), 175, 150);
+    doc.text("Total dos Descontos", 127, 155);
+    doc.text(totalDescontos.toFixed(2), 175, 155);
+    doc.text("Líquido a Receber ->", 127, 163);
+    doc.text(totalLiquido.toFixed(2), 175, 163);
+    
+    // 2. Dados do Prestador de Serviços
+    doc.rect(10, 30, 190, 15);
+    doc.setFontSize(7);
+    doc.text("CÓDIGO", 12, 34);
+    doc.text("PRESTADOR DE SERVIÇOS / EMPRESA", 30, 34);
+    doc.text("OBJETO DO CONTRATO", 150, 34);
+    
+    doc.setFontSize(9);
+    doc.text(funcionario.id.toString(), 12, 40);
+    doc.text(funcionario.nome, 30, 40);
+    doc.text(funcionario.tipo === 'vendedora' ? 'VENDEDOR' : 'PRODUÇÃO', 150, 40);
+    
+    // 3. Tabela de Proventos e Descontos
+    doc.rect(10, 45, 190, 100); // Corpo da tabela
+    doc.line(10, 52, 200, 52); // Linha do cabeçalho da tabela
+    
+    // Colunas da tabela
+    doc.text("Cód.", 12, 50);
+    doc.text("Descrição", 40, 50);
+    doc.text("Referência", 110, 50);
+    doc.text("Proventos", 140, 50);
+    doc.text("Descontos", 170, 50);
+    
+    // Linhas verticais separadoras
+    doc.line(25, 45, 25, 145);
+    doc.line(105, 45, 105, 145);
+    doc.line(135, 45, 135, 145);
+    doc.line(165, 45, 165, 145);
+    
+    // Preenchimento de Itens
+    doc.setFont("helvetica", "normal");
+    yItem = 58;
+    
+    // Honorários Mensais
+    doc.text("001", 12, yItem);
+    doc.text("HONORÁRIOS MENSAL", 30, yItem);
+    doc.text(folha.salario_base.toFixed(2), 110, yItem);
+    doc.text(folha.salario_base.toFixed(2), 140, yItem);
+    yItem += 5;
+    
+    // Premiação por Performance
+    if (folha.comissoes > 0) {
+        doc.text("002", 12, yItem);
+        doc.text("COMISSÕES POR VENDAS", 30, yItem);
+        doc.text(folha.comissoes.toFixed(2), 110, yItem);
+        doc.text(folha.comissoes.toFixed(2), 140, yItem);
+        yItem += 5;
+    }
+    
+    // Prêmio por Meta (apenas para vendedoras) - multiplicado pelo número de vezes que bateu a meta
+    if (funcionario.tipo === 'vendedora' && folha.bonus > 0) {
+        const vezesBateuMeta = Math.floor(totalMaquinas / (funcionario.meta_maquinas || 10));
+        const premioTotal = vezesBateuMeta * (funcionario.premio_meta || 1000);
+        doc.text("003", 12, yItem);
+        doc.text("PRÊMIO POR META", 30, yItem);
+        doc.text(premioTotal.toFixed(2), 110, yItem);
+        doc.text(premioTotal.toFixed(2), 140, yItem);
+        yItem += 5;
+    }
+    
+    // Bônus por Meta (apenas para vendedoras) - ganha apenas uma vez quando bate a meta
+    if (funcionario.tipo === 'vendedora' && folha.bonus > 0 && totalMaquinas >= (funcionario.meta_maquinas || 10)) {
+        doc.text("004", 12, yItem);
+        doc.text("BÔNUS POR META", 30, yItem);
+        doc.text((funcionario.bonus_meta || 1000).toFixed(2), 110, yItem);
+        doc.text((funcionario.bonus_meta || 1000).toFixed(2), 140, yItem);
+        yItem += 5;
+    }
+    
+    // Ajustes
+    totalAjustesProventos = 0;
+    totalAjustesDescontos = 0;
+    
+    if (folha.ajustes) {
+        try {
+            const ajustes = JSON.parse(folha.ajustes);
+            ajustes.forEach((ajuste, index) => {
+                const codigo = 100 + index;
+                doc.text(codigo.toString(), 12, yItem);
+                doc.text(ajuste.tipo, 30, yItem);
+                doc.text(ajuste.valor.toFixed(2), 110, yItem);
+                
+                if (ajuste.valor > 0) {
+                    doc.text(ajuste.valor.toFixed(2), 140, yItem);
+                    totalAjustesProventos += ajuste.valor;
+                } else {
+                    doc.text(Math.abs(ajuste.valor).toFixed(2), 170, yItem);
+                    totalAjustesDescontos += Math.abs(ajuste.valor);
+                }
+                yItem += 5;
+            });
+        } catch (error) {
+            console.error('Erro ao parsear ajustes:', error);
+        }
+    }
+    
+    // 4. Rodapé de Valores
+    doc.rect(125, 145, 75, 15);
+    doc.setFont("helvetica", "bold");
+    
+    totalProventos = folha.salario_base + folha.comissoes + (folha.bonus || 0) + totalAjustesProventos;
+    totalDescontos = totalAjustesDescontos;
+    totalLiquido = totalProventos - totalDescontos;
+    
+    doc.text("Total dos Vencimentos", 127, 150);
+    doc.text(totalProventos.toFixed(2), 175, 150);
+    doc.text("Total dos Descontos", 127, 155);
+    doc.text(totalDescontos.toFixed(2), 175, 155);
+    doc.text("Líquido a Receber ->", 127, 163);
+    doc.text(totalLiquido.toFixed(2), 175, 163);
+    
+    // 5. Canhoto Lateral
+    doc.line(205, 10, 205, 160);
+    doc.setFontSize(6);
+    doc.text("DECLARO TER RECEBIDO A IMPORTÂNCIA LÍQUIDA DISCRIMINADA NESTE RECIBO.", 208, 10, {angle: 90});
+    
+    // Rodapé - Via Empresa
+    yItem = 170;
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    doc.text("** 2ª VIA - EMPRESA **", 105, yItem, { align: 'center' });
+    doc.setFont("helvetica", "normal");
+    yItem += 5;
+    doc.setFontSize(7);
+    doc.text(`Emitido em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}.`, 105, yItem, { align: 'center' });
+    
+    // Salvar PDF
+    doc.save(`holerite-${funcionario.nome.replace(/\s+/g, '-')}-${mes}.pdf`);
+    
+    console.log('PDF Holerite gerado com sucesso!');
+}
+
