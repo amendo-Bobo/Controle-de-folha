@@ -2091,11 +2091,11 @@ async function gerarPDFHolerite(funcionario, folha, mes, totalMaquinas = 0) {
     doc.setFont("helvetica", "bold");
     
     // 1. Cabeçalho (Empregador e Título)
-    doc.rect(10, 10, 190, 20); // Borda externa superior
+    doc.rect(9, 10, 190, 20); // Borda externa superior
     doc.text("EMPREGADOR", 12, 14);
     doc.text("Nome: LIONS BRONZE", 12, 19);
-    doc.text("Endereço: Rua XYZ, 10", 12, 23);
-    doc.text("CNPJ: 00.000.000/001-10", 12, 27);
+    doc.text("Endereço: Rua Candido Sales,202", 12, 23);
+    doc.text("CNPJ: 52.835.321/0001-00", 12, 27);
     
     doc.setFontSize(12);
     doc.text("Recibo de Pagamento de Prestação de Serviços", 100, 15);
