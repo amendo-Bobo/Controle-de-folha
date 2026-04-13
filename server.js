@@ -790,8 +790,8 @@ app.post('/api/vendas', async (req, res) => {
                 
                 // Inserir venda
                 const result = await client.query(
-                    `INSERT INTO vendas (id_funcionario, tipo_maquina, quantidade_maquinas, com_desconto, data_venda) 
-                     VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+                    `INSERT INTO vendas (id_funcionario, tipo_maquina, quantidade_maquinas, com_desconto, data_venda, mes) 
+                     VALUES ($1, $2, $3, $4, $5, TO_CHAR($5::date, 'YYYY-MM')) RETURNING *`,
                     [id_funcionario, tipo_maquina, quantidade_maquinas, com_desconto, data_venda]
                 );
                 
@@ -827,8 +827,9 @@ app.post('/api/vendas', async (req, res) => {
                     }
                     
                     // Inserir venda
-                    const sql = 'INSERT INTO vendas (id_funcionario, tipo_maquina, quantidade_maquinas, com_desconto, data_venda) VALUES (?, ?, ?, ?, ?)';
-                    const params = [id_funcionario, tipo_maquina, quantidade_maquinas, com_desconto, data_venda];
+                    const mes = data_venda.substring(0, 7); // Extrair YYYY-MM
+                    const sql = 'INSERT INTO vendas (id_funcionario, tipo_maquina, quantidade_maquinas, com_desconto, data_venda, mes) VALUES (?, ?, ?, ?, ?, ?)';
+                    const params = [id_funcionario, tipo_maquina, quantidade_maquinas, com_desconto, data_venda, mes];
                     
                     db.run(sql, params, function(err) {
                         if (err) {
@@ -867,8 +868,9 @@ app.post('/api/vendas', async (req, res) => {
                 }
                 
                 // Inserir venda
-                const sql = 'INSERT INTO vendas (id_funcionario, tipo_maquina, quantidade_maquinas, com_desconto, data_venda) VALUES (?, ?, ?, ?, ?)';
-                const params = [id_funcionario, tipo_maquina, quantidade_maquinas, com_desconto, data_venda];
+                const mes = data_venda.substring(0, 7); // Extrair YYYY-MM
+                const sql = 'INSERT INTO vendas (id_funcionario, tipo_maquina, quantidade_maquinas, com_desconto, data_venda, mes) VALUES (?, ?, ?, ?, ?, ?)';
+                const params = [id_funcionario, tipo_maquina, quantidade_maquinas, com_desconto, data_venda, mes];
                 
                 db.run(sql, params, function(err) {
                     if (err) {
