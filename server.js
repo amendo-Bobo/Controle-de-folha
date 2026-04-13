@@ -317,6 +317,73 @@ app.get('/api/funcionarios', async (req, res) => {
     }
 });
 
+// GET funcionarios/:id (buscar um funcionário específico)
+app.get('/api/funcionarios/:id', async (req, res) => {
+    console.log('=== GET /api/funcionarios/:id chamado ===');
+    console.log('ID:', req.params.id);
+    console.log('useSupabase:', useSupabase);
+    
+    const { id } = req.params;
+    
+    if (useSupabase) {
+        // Usar PostgreSQL direto
+        console.log('Buscando funcionário no PostgreSQL...');
+        const { Client } = require('pg');
+        
+        try {
+            // Usar o endpoint correto do pooler
+            const poolerUrl = databaseUrl.replace(
+                'postgresql://postgres:tiVW2cmpeVStByLm@db.yuwddqxdnyjvilbmjooc.supabase.co:5432/postgres',
+                'postgresql://postgres.yuwddqxdnyjvilbmjooc:tiVW2cmpeVStByLm@aws-1-sa-east-1.pooler.supabase.com:6543/postgres'
+            );
+            
+            const client = new Client({
+                connectionString: poolerUrl,
+                ssl: { rejectUnauthorized: false },
+                connectionTimeoutMillis: 10000,
+                query_timeout: 10000
+            });
+            
+            await client.connect();
+            console.log('Conectado ao PostgreSQL com pooler!');
+            
+            const result = await client.query(
+                'SELECT * FROM funcionarios WHERE id = $1',
+                [id]
+            );
+            
+            await client.end();
+            
+            if (result.rows.length === 0) {
+                console.log('Funcionário não encontrado no PostgreSQL');
+                return res.status(404).json({ error: 'Funcionário não encontrado' });
+            }
+            
+            console.log('Funcionário encontrado no PostgreSQL:', result.rows[0]);
+            res.json(result.rows[0]);
+        } catch (error) {
+            console.error('Erro ao buscar funcionário no PostgreSQL:', error);
+            res.status(500).json({ error: error.message });
+        }
+    } else {
+        // Usar SQLite local
+        console.log('Buscando funcionário no SQLite local...');
+        db.get('SELECT * FROM funcionarios WHERE id = ?', [id], (err, row) => {
+            if (err) {
+                console.error('Erro no SQLite local:', err);
+                res.status(500).json({ error: err.message });
+                return;
+            }
+            if (!row) {
+                console.log('Funcionário não encontrado no SQLite local');
+                return res.status(404).json({ error: 'Funcionário não encontrado' });
+            }
+            console.log('Funcionário encontrado no SQLite local:', row);
+            res.json(row);
+        });
+    }
+});
+
 // POST funcionarios
 app.post('/api/funcionarios', async (req, res) => {
     console.log('=== POST /api/funcionarios ===');
