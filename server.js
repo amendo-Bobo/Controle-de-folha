@@ -12,11 +12,11 @@ const PORT = process.env.PORT || 3000;
 
 console.log('Iniciando servidor...');
 
-// Configurar Supabase (comentado para teste local)
-// const supabaseUrl = process.env.SUPABASE_URL || 'https://db.yuwddqxdnyjvilbmjooc.supabase.co';
-// const supabaseKey = process.env.SUPABASE_PASSWORD || 'tiVW2cmpeVStByLm';
+// Configurar Supabase
+const supabaseUrl = process.env.SUPABASE_URL || 'https://db.yuwddqxdnyjvilbmjooc.supabase.co';
+const supabaseKey = process.env.SUPABASE_PASSWORD || 'tiVW2cmpeVStByLm';
 
-// Forçar uso de SQLite local para testes
+// Usar Supabase se estiver configurado no Render, senão SQLite local
 const useSupabase = process.env.USE_SUPABASE === 'true';
 
 console.log('useSupabase:', useSupabase);
