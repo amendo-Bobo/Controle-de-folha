@@ -83,10 +83,19 @@ async function createSupabaseTables() {
                     salario_base REAL DEFAULT 0,
                     comissao_maquina_producao REAL DEFAULT 100,
                     meta_maquinas INTEGER DEFAULT 10,
+                    premio_meta REAL DEFAULT 1000,
                     bonus_meta REAL DEFAULT 1000,
                     ativo BOOLEAN DEFAULT true
                 )
             `);
+            
+            // Adicionar coluna premio_meta se não existir
+            try {
+                await client.query(`ALTER TABLE funcionarios ADD COLUMN IF NOT EXISTS premio_meta REAL DEFAULT 1000`);
+                console.log('Coluna premio_meta adicionada (se não existia)');
+            } catch (error) {
+                console.log('Coluna premio_meta já existe ou erro ao adicionar:', error.message);
+            }
             
             // Criar tabela vendas
             await client.query(`
@@ -199,11 +208,21 @@ const db = new sqlite3.Database('./erp.db', (err) => {
             salario_base REAL DEFAULT 0,
             comissao_maquina_producao REAL DEFAULT 100,
             meta_maquinas INTEGER DEFAULT 10,
+            premio_meta REAL DEFAULT 1000,
             bonus_meta REAL DEFAULT 1000,
             ativo BOOLEAN DEFAULT 1
         )`);
         
         console.log('Tabela funcionarios criada com sucesso');
+        
+        // Adicionar coluna premio_meta se não existir
+        db.run(`ALTER TABLE funcionarios ADD COLUMN premio_meta REAL DEFAULT 1000`, (err) => {
+            if (err && !err.message.includes('duplicate column name')) {
+                console.log('Coluna premio_meta já existe ou erro ao adicionar:', err.message);
+            } else if (!err) {
+                console.log('Coluna premio_meta adicionada (se não existia)');
+            }
+        });
 
         // Tabela vendas
         db.run(`CREATE TABLE IF NOT EXISTS vendas (
@@ -399,6 +418,7 @@ app.post('/api/funcionarios', async (req, res) => {
             salario_base, 
             comissao_maquina_producao,
             meta_maquinas,
+            premio_meta,
             bonus_meta
         } = req.body;
         
@@ -431,8 +451,8 @@ app.post('/api/funcionarios', async (req, res) => {
                 
                 const result = await client.query(
                     `INSERT INTO funcionarios (nome, tipo, comissao_maquina_grande, comissao_maquina_pequena, 
-                     comissao_extra_desconto, salario_base, comissao_maquina_producao, meta_maquinas, bonus_meta, ativo) 
-                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true) 
+                     comissao_extra_desconto, salario_base, comissao_maquina_producao, meta_maquinas, premio_meta, bonus_meta, ativo) 
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true) 
                      RETURNING *`,
                     [
                         nome, 
@@ -443,6 +463,7 @@ app.post('/api/funcionarios', async (req, res) => {
                         Number(salario_base) || 0, 
                         Number(comissao_maquina_producao) || 100,
                         Number(meta_maquinas) || 10,
+                        Number(premio_meta) || 1000,
                         Number(bonus_meta) || 1000
                     ]
                 );
@@ -456,7 +477,7 @@ app.post('/api/funcionarios', async (req, res) => {
                 console.log('PostgreSQL falhou, usando SQLite fallback:', pgError.message);
                 
                 // Fallback para SQLite
-                const sql = 'INSERT INTO funcionarios (nome, tipo, comissao_maquina_grande, comissao_maquina_pequena, comissao_extra_desconto, salario_base, comissao_maquina_producao, meta_maquinas, bonus_meta) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)';
+                const sql = 'INSERT INTO funcionarios (nome, tipo, comissao_maquina_grande, comissao_maquina_pequena, comissao_extra_desconto, salario_base, comissao_maquina_producao, meta_maquinas, premio_meta, bonus_meta) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
                 const params = [
                     nome, 
                     tipo, 
@@ -466,6 +487,7 @@ app.post('/api/funcionarios', async (req, res) => {
                     Number(salario_base) || 0, 
                     Number(comissao_maquina_producao) || 100,
                     Number(meta_maquinas) || 10,
+                    Number(premio_meta) || 1000,
                     Number(bonus_meta) || 1000
                 ];
                 
@@ -485,6 +507,7 @@ app.post('/api/funcionarios', async (req, res) => {
                         salario_base: Number(salario_base) || 0, 
                         comissao_maquina_producao: Number(comissao_maquina_producao) || 100,
                         meta_maquinas: Number(meta_maquinas) || 10,
+                        premio_meta: Number(premio_meta) || 1000,
                         bonus_meta: Number(bonus_meta) || 1000,
                         ativo: true
                     });
@@ -492,7 +515,7 @@ app.post('/api/funcionarios', async (req, res) => {
             }
         } else {
             // Usar SQLite local
-            const sql = 'INSERT INTO funcionarios (nome, tipo, comissao_maquina_grande, comissao_maquina_pequena, comissao_extra_desconto, salario_base, comissao_maquina_producao, meta_maquinas, bonus_meta) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)';
+            const sql = 'INSERT INTO funcionarios (nome, tipo, comissao_maquina_grande, comissao_maquina_pequena, comissao_extra_desconto, salario_base, comissao_maquina_producao, meta_maquinas, premio_meta, bonus_meta) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
             const params = [
                 nome, 
                 tipo, 
@@ -502,6 +525,7 @@ app.post('/api/funcionarios', async (req, res) => {
                 Number(salario_base) || 0, 
                 Number(comissao_maquina_producao) || 100,
                 Number(meta_maquinas) || 10,
+                Number(premio_meta) || 1000,
                 Number(bonus_meta) || 1000
             ];
             
@@ -521,6 +545,7 @@ app.post('/api/funcionarios', async (req, res) => {
                     salario_base: Number(salario_base) || 0, 
                     comissao_maquina_producao: Number(comissao_maquina_producao) || 100,
                     meta_maquinas: Number(meta_maquinas) || 10,
+                    premio_meta: Number(premio_meta) || 1000,
                     bonus_meta: Number(bonus_meta) || 1000,
                     ativo: true
                 });
@@ -2029,10 +2054,14 @@ app.post('/api/gerar-folha/:mes', async (req, res) => {
                         
                         comissoes = valorGrandeSemDesconto + valorGrandeComDesconto + valorPequenaSemDesconto + valorPequenaComDesconto;
                         
-                        // Verificar meta
+                        // Verificar meta e calcular prêmio/bônus
                         const totalMaquinas = qtdGrandeSemDesconto + qtdGrandeComDesconto + qtdPequenaSemDesconto + qtdPequenaComDesconto;
                         if (totalMaquinas >= func.meta_maquinas) {
-                            bonus = func.bonus_meta;
+                            const vezesBateuMeta = Math.floor(totalMaquinas / func.meta_maquinas);
+                            const premioTotal = vezesBateuMeta * (func.premio_meta || 1000);
+                            const bonusTotal = func.bonus_meta || 1000;
+                            bonus = premioTotal + bonusTotal;
+                            console.log(`Meta batida! Total máquinas: ${totalMaquinas}, Vezes: ${vezesBateuMeta}, Prêmio: ${premioTotal}, Bônus: ${bonusTotal}, Total: ${bonus}`);
                         }
                         
                         // Detalhamento das comissões
