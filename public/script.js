@@ -53,6 +53,7 @@ function toggleCamposFuncionario(tipo) {
         'campo-comissao-pequena', 
         'campo-comissao-extra',
         'campo-meta',
+        'campo-premio-meta',
         'campo-bonus-meta'
     ];
     
@@ -452,6 +453,7 @@ async function salvarFuncionario() {
     const comissaoPequena = parseFloat(document.getElementById('func-comissao-pequena').value) || 250;
     const comissaoExtra = parseFloat(document.getElementById('func-comissao-extra').value) || 100;
     const meta = parseInt(document.getElementById('func-meta').value) || 10;
+    const premioMeta = parseFloat(document.getElementById('func-premio-meta').value) || 1000;
     const bonusMeta = parseFloat(document.getElementById('func-bonus-meta').value) || 1000;
     const salario = parseFloat(document.getElementById('func-salario').value) || 3000;
     const comissaoProducao = parseFloat(document.getElementById('func-comissao-producao').value) || 100;
