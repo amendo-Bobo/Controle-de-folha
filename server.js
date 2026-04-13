@@ -13,8 +13,8 @@ const PORT = process.env.PORT || 3000;
 console.log('Iniciando servidor...');
 
 // Configurar Supabase
-const supabaseUrl = process.env.SUPABASE_URL || 'https://gbnibcoshpgwzqkkugsb.supabase.co';
-const supabaseKey = process.env.SUPABASE_PASSWORD || 'sua-senha-aqui';
+const supabaseUrl = process.env.SUPABASE_URL || 'https://yuwddqxdnyjvilbmjooc.supabase.co';
+const supabaseKey = process.env.SUPABASE_PASSWORD || 'tiVW2cmpeVStByLm';
 
 // Usar Supabase se estiver configurado no Render, senão SQLite local
 const useSupabase = process.env.USE_SUPABASE === 'true';
@@ -37,13 +37,9 @@ async function createSupabaseTables() {
     
     const { Client } = require('pg');
     
+    const poolerUrl = `postgresql://postgres.yuwddqxdnyjvilbmjooc:${supabaseKey}@aws-1-sa-east-1.pooler.supabase.com:6543/postgres`;
+    
     try {
-        // Usar o endpoint correto do pooler
-        const poolerUrl = databaseUrl.replace(
-            'postgresql://postgres:sua-senha-aqui@db.gbnibcoshpgwzqkkugsb.supabase.co:5432/postgres',
-            'postgresql://postgres.gbnibcoshpgwzqkkugsb:sua-senha-aqui@aws-1-sa-east-1.pooler.supabase.com:6543/postgres'
-        );
-        
         console.log('Tentando conectar com:', poolerUrl.split('@')[1]);
         
         const client = new Client({
