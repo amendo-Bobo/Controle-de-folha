@@ -2048,11 +2048,11 @@ app.post('/api/gerar-folha/:mes', async (req, res) => {
                             }
                         }
                         
-                        // Calcular valores
-                        const valorGrandeSemDesconto = qtdGrandeSemDesconto * func.comissao_maquina_grande;
-                        const valorGrandeComDesconto = qtdGrandeComDesconto * (func.comissao_maquina_grande - func.comissao_extra_desconto);
-                        const valorPequenaSemDesconto = qtdPequenaSemDesconto * func.comissao_maquina_pequena;
-                        const valorPequenaComDesconto = qtdPequenaComDesconto * (func.comissao_maquina_pequena - func.comissao_extra_desconto);
+                        // Calcular valores (sem desconto ganha 100 a mais, com desconto ganha base)
+                        const valorGrandeSemDesconto = qtdGrandeSemDesconto * (func.comissao_maquina_grande + func.comissao_extra_desconto);
+                        const valorGrandeComDesconto = qtdGrandeComDesconto * func.comissao_maquina_grande;
+                        const valorPequenaSemDesconto = qtdPequenaSemDesconto * (func.comissao_maquina_pequena + func.comissao_extra_desconto);
+                        const valorPequenaComDesconto = qtdPequenaComDesconto * func.comissao_maquina_pequena;
                         
                         comissoes = valorGrandeSemDesconto + valorGrandeComDesconto + valorPequenaSemDesconto + valorPequenaComDesconto;
                         
