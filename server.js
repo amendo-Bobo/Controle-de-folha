@@ -13,7 +13,7 @@ const PORT = process.env.PORT || 3000;
 console.log('Iniciando servidor...');
 
 // Configurar Supabase
-const supabaseUrl = process.env.SUPABASE_URL || 'https://yuwddqxdnyjvilbmjooc.supabase.co';
+const supabaseUrl = process.env.SUPABASE_URL || 'https://db.yuwddqxdnyjvilbmjooc.supabase.co';
 const supabaseKey = process.env.SUPABASE_PASSWORD || 'tiVW2cmpeVStByLm';
 
 // Forçar IPv4 para evitar ENETUNREACH
@@ -51,9 +51,13 @@ async function createSupabaseTables() {
     
     const { Client } = require('pg');
     
-    const poolerUrl = `postgresql://postgres.yuwddqxdnyjvilbmjooc:${supabaseKey}@aws-1-sa-east-1.pooler.supabase.com:6543/postgres`;
-    
     try {
+        // Usar o endpoint correto do pooler
+        const poolerUrl = databaseUrl.replace(
+            'postgresql://postgres:tiVW2cmpeVStByLm@db.yuwddqxdnyjvilbmjooc.supabase.co:5432/postgres',
+            'postgresql://postgres.yuwddqxdnyjvilbmjooc:tiVW2cmpeVStByLm@aws-1-sa-east-1.pooler.supabase.com:6543/postgres'
+        );
+        
         console.log('Tentando conectar com:', poolerUrl.split('@')[1]);
         
         const client = new Client({
@@ -79,7 +83,6 @@ async function createSupabaseTables() {
                     salario_base REAL DEFAULT 0,
                     comissao_maquina_producao REAL DEFAULT 100,
                     meta_maquinas INTEGER DEFAULT 10,
-                    premio_meta REAL DEFAULT 1000,
                     bonus_meta REAL DEFAULT 1000,
                     ativo BOOLEAN DEFAULT true
                 )
@@ -141,7 +144,6 @@ async function createSupabaseTables() {
                     total REAL NOT NULL DEFAULT 0,
                     data_geracao DATE DEFAULT CURRENT_DATE NOT NULL,
                     detalhe_comissoes TEXT,
-                    ajustes TEXT,
                     created_at TIMESTAMP DEFAULT NOW(),
                     updated_at TIMESTAMP DEFAULT NOW()
                 )
@@ -197,7 +199,6 @@ const db = new sqlite3.Database('./erp.db', (err) => {
             salario_base REAL DEFAULT 0,
             comissao_maquina_producao REAL DEFAULT 100,
             meta_maquinas INTEGER DEFAULT 10,
-            premio_meta REAL DEFAULT 1000,
             bonus_meta REAL DEFAULT 1000,
             ativo BOOLEAN DEFAULT 1
         )`);
@@ -212,18 +213,8 @@ const db = new sqlite3.Database('./erp.db', (err) => {
             quantidade_maquinas INTEGER NOT NULL,
             com_desconto BOOLEAN DEFAULT 1,
             data_venda DATE NOT NULL,
-            mes TEXT,
             FOREIGN KEY (id_funcionario) REFERENCES funcionarios(id)
         )`);
-        
-        // Adicionar coluna mes se não existir
-        db.run(`ALTER TABLE vendas ADD COLUMN mes TEXT`, (err) => {
-            if (err && !err.message.includes('duplicate column name')) {
-                console.error('Erro ao adicionar coluna mes:', err);
-            } else {
-                console.log('Coluna mes adicionada ou já existe na tabela vendas');
-            }
-        });
         
         console.log('Tabela vendas criada com sucesso');
 
@@ -326,77 +317,6 @@ app.get('/api/funcionarios', async (req, res) => {
     }
 });
 
-// GET funcionario por ID
-app.get('/api/funcionarios/:id', async (req, res) => {
-    console.log('=== GET /api/funcionarios/:id chamado ===');
-    console.log('ID:', req.params.id);
-    console.log('useSupabase:', useSupabase);
-    
-    if (useSupabase) {
-        // Usar PostgreSQL direto
-        console.log('Buscando funcionário no PostgreSQL...');
-        const { Client } = require('pg');
-        
-        try {
-            const poolerUrl = databaseUrl.replace(
-                'postgresql://postgres:tiVW2cmpeVStByLm@db.yuwddqxdnyjvilbmjooc.supabase.co:5432/postgres',
-                'postgresql://postgres.yuwddqxdnyjvilbmjooc:tiVW2cmpeVStByLm@aws-1-sa-east-1.pooler.supabase.com:6543/postgres'
-            );
-            
-            const client = new Client({
-                connectionString: poolerUrl,
-                ssl: { rejectUnauthorized: false },
-                connectionTimeoutMillis: 10000,
-                query_timeout: 10000
-            });
-            
-            await client.connect();
-            
-            const result = await client.query('SELECT * FROM funcionarios WHERE id = $1', [req.params.id]);
-            
-            console.log('Funcionário encontrado no PostgreSQL:', result.rows.length);
-            
-            await client.end();
-            
-            if (result.rows.length === 0) {
-                return res.status(404).json({ error: 'Funcionário não encontrado' });
-            }
-            
-            res.json(result.rows[0]);
-            
-        } catch (error) {
-            console.log('Erro no PostgreSQL, usando SQLite fallback:', error.message);
-            
-            // Fallback para SQLite
-            db.get('SELECT * FROM funcionarios WHERE id = ?', [req.params.id], (err, row) => {
-                if (err) {
-                    console.error('Erro no SQLite fallback:', err);
-                    return res.status(500).json({ error: err.message });
-                }
-                if (!row) {
-                    return res.status(404).json({ error: 'Funcionário não encontrado' });
-                }
-                res.json(row);
-            });
-        }
-    } else {
-        // Usar SQLite local
-        console.log('Usando SQLite local...');
-        db.get('SELECT * FROM funcionarios WHERE id = ?', [req.params.id], (err, row) => {
-            if (err) {
-                console.error('Erro no SQLite local:', err);
-                return res.status(500).json({ error: err.message });
-            }
-            if (!row) {
-                console.log('Funcionário não encontrado no SQLite local');
-                return res.status(404).json({ error: 'Funcionário não encontrado' });
-            }
-            console.log('Funcionário encontrado no SQLite local:', row.nome);
-            res.json(row);
-        });
-    }
-});
-
 // POST funcionarios
 app.post('/api/funcionarios', async (req, res) => {
     console.log('=== POST /api/funcionarios ===');
@@ -412,7 +332,6 @@ app.post('/api/funcionarios', async (req, res) => {
             salario_base, 
             comissao_maquina_producao,
             meta_maquinas,
-            premio_meta,
             bonus_meta
         } = req.body;
         
@@ -445,8 +364,8 @@ app.post('/api/funcionarios', async (req, res) => {
                 
                 const result = await client.query(
                     `INSERT INTO funcionarios (nome, tipo, comissao_maquina_grande, comissao_maquina_pequena, 
-                     comissao_extra_desconto, salario_base, comissao_maquina_producao, meta_maquinas, premio_meta, bonus_meta, ativo) 
-                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true) 
+                     comissao_extra_desconto, salario_base, comissao_maquina_producao, meta_maquinas, bonus_meta, ativo) 
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true) 
                      RETURNING *`,
                     [
                         nome, 
@@ -457,7 +376,6 @@ app.post('/api/funcionarios', async (req, res) => {
                         Number(salario_base) || 0, 
                         Number(comissao_maquina_producao) || 100,
                         Number(meta_maquinas) || 10,
-                        Number(premio_meta) || 1000,
                         Number(bonus_meta) || 1000
                     ]
                 );
@@ -471,7 +389,7 @@ app.post('/api/funcionarios', async (req, res) => {
                 console.log('PostgreSQL falhou, usando SQLite fallback:', pgError.message);
                 
                 // Fallback para SQLite
-                const sql = 'INSERT INTO funcionarios (nome, tipo, comissao_maquina_grande, comissao_maquina_pequena, comissao_extra_desconto, salario_base, comissao_maquina_producao, meta_maquinas, premio_meta, bonus_meta) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+                const sql = 'INSERT INTO funcionarios (nome, tipo, comissao_maquina_grande, comissao_maquina_pequena, comissao_extra_desconto, salario_base, comissao_maquina_producao, meta_maquinas, bonus_meta) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)';
                 const params = [
                     nome, 
                     tipo, 
@@ -481,7 +399,6 @@ app.post('/api/funcionarios', async (req, res) => {
                     Number(salario_base) || 0, 
                     Number(comissao_maquina_producao) || 100,
                     Number(meta_maquinas) || 10,
-                    Number(premio_meta) || 1000,
                     Number(bonus_meta) || 1000
                 ];
                 
@@ -508,7 +425,7 @@ app.post('/api/funcionarios', async (req, res) => {
             }
         } else {
             // Usar SQLite local
-            const sql = 'INSERT INTO funcionarios (nome, tipo, comissao_maquina_grande, comissao_maquina_pequena, comissao_extra_desconto, salario_base, comissao_maquina_producao, meta_maquinas, premio_meta, bonus_meta) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+            const sql = 'INSERT INTO funcionarios (nome, tipo, comissao_maquina_grande, comissao_maquina_pequena, comissao_extra_desconto, salario_base, comissao_maquina_producao, meta_maquinas, bonus_meta) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)';
             const params = [
                 nome, 
                 tipo, 
@@ -518,7 +435,6 @@ app.post('/api/funcionarios', async (req, res) => {
                 Number(salario_base) || 0, 
                 Number(comissao_maquina_producao) || 100,
                 Number(meta_maquinas) || 10,
-                Number(premio_meta) || 1000,
                 Number(bonus_meta) || 1000
             ];
             
@@ -566,7 +482,6 @@ app.put('/api/funcionarios/:id', async (req, res) => {
             salario_base, 
             comissao_maquina_producao,
             meta_maquinas,
-            premio_meta,
             bonus_meta
         } = req.body;
         
@@ -599,8 +514,8 @@ app.put('/api/funcionarios/:id', async (req, res) => {
                     `UPDATE funcionarios SET 
                      nome = $1, tipo = $2, comissao_maquina_grande = $3, comissao_maquina_pequena = $4,
                      comissao_extra_desconto = $5, salario_base = $6, comissao_maquina_producao = $7,
-                     meta_maquinas = $8, premio_meta = $9, bonus_meta = $10, updated_at = NOW()
-                     WHERE id = $11 RETURNING *`,
+                     meta_maquinas = $8, bonus_meta = $9, updated_at = NOW()
+                     WHERE id = $10 RETURNING *`,
                     [
                         nome, 
                         tipo, 
@@ -610,7 +525,6 @@ app.put('/api/funcionarios/:id', async (req, res) => {
                         Number(salario_base) || 0, 
                         Number(comissao_maquina_producao) || 100,
                         Number(meta_maquinas) || 10,
-                        Number(premio_meta) || 1000,
                         Number(bonus_meta) || 1000,
                         id
                     ]
@@ -629,7 +543,7 @@ app.put('/api/funcionarios/:id', async (req, res) => {
             const sql = `UPDATE funcionarios SET 
                 nome = ?, tipo = ?, comissao_maquina_grande = ?, comissao_maquina_pequena = ?,
                 comissao_extra_desconto = ?, salario_base = ?, comissao_maquina_producao = ?,
-                meta_maquinas = ?, premio_meta = ?, bonus_meta = ?
+                meta_maquinas = ?, bonus_meta = ?
                 WHERE id = ?`;
             
             const params = [
@@ -641,7 +555,6 @@ app.put('/api/funcionarios/:id', async (req, res) => {
                 Number(salario_base) || 0, 
                 Number(comissao_maquina_producao) || 100,
                 Number(meta_maquinas) || 10,
-                Number(premio_meta) || 1000,
                 Number(bonus_meta) || 1000,
                 id
             ];
@@ -739,8 +652,7 @@ app.post('/api/vendas', async (req, res) => {
     console.log('Dados recebidos:', req.body);
     
     try {
-        const { id_funcionario, tipo_maquina, quantidade_maquinas, com_desconto, data_venda, mes } = req.body;
-        console.log('Dados extraídos:', { id_funcionario, tipo_maquina, quantidade_maquinas, com_desconto, data_venda, mes });
+        const { id_funcionario, tipo_maquina, quantidade_maquinas, com_desconto, data_venda } = req.body;
         
         // Validação básica
         if (!id_funcionario || !tipo_maquina || !quantidade_maquinas || !data_venda) {
@@ -786,9 +698,9 @@ app.post('/api/vendas', async (req, res) => {
                 
                 // Inserir venda
                 const result = await client.query(
-                    `INSERT INTO vendas (id_funcionario, tipo_maquina, quantidade_maquinas, com_desconto, data_venda, mes) 
-                     VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-                    [id_funcionario, tipo_maquina, quantidade_maquinas, com_desconto, data_venda, mes]
+                    `INSERT INTO vendas (id_funcionario, tipo_maquina, quantidade_maquinas, com_desconto, data_venda) 
+                     VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+                    [id_funcionario, tipo_maquina, quantidade_maquinas, com_desconto, data_venda]
                 );
                 
                 console.log('Venda inserida no PostgreSQL:', result.rows[0]);
@@ -823,8 +735,8 @@ app.post('/api/vendas', async (req, res) => {
                     }
                     
                     // Inserir venda
-                    const sql = 'INSERT INTO vendas (id_funcionario, tipo_maquina, quantidade_maquinas, com_desconto, data_venda, mes) VALUES (?, ?, ?, ?, ?, ?)';
-                    const params = [id_funcionario, tipo_maquina, quantidade_maquinas, com_desconto, data_venda, mes];
+                    const sql = 'INSERT INTO vendas (id_funcionario, tipo_maquina, quantidade_maquinas, com_desconto, data_venda) VALUES (?, ?, ?, ?, ?)';
+                    const params = [id_funcionario, tipo_maquina, quantidade_maquinas, com_desconto, data_venda];
                     
                     db.run(sql, params, function(err) {
                         if (err) {
@@ -839,7 +751,6 @@ app.post('/api/vendas', async (req, res) => {
                             quantidade_maquinas, 
                             com_desconto, 
                             data_venda,
-                            mes,
                             nome_funcionario: row.nome
                         });
                     });
@@ -864,8 +775,8 @@ app.post('/api/vendas', async (req, res) => {
                 }
                 
                 // Inserir venda
-                const sql = 'INSERT INTO vendas (id_funcionario, tipo_maquina, quantidade_maquinas, com_desconto, data_venda, mes) VALUES (?, ?, ?, ?, ?, ?)';
-                const params = [id_funcionario, tipo_maquina, quantidade_maquinas, com_desconto, data_venda, mes];
+                const sql = 'INSERT INTO vendas (id_funcionario, tipo_maquina, quantidade_maquinas, com_desconto, data_venda) VALUES (?, ?, ?, ?, ?)';
+                const params = [id_funcionario, tipo_maquina, quantidade_maquinas, com_desconto, data_venda];
                 
                 db.run(sql, params, function(err) {
                     if (err) {
@@ -880,7 +791,6 @@ app.post('/api/vendas', async (req, res) => {
                         quantidade_maquinas, 
                         com_desconto, 
                         data_venda,
-                        mes,
                         nome_funcionario: row.nome
                     });
                 });
@@ -1716,7 +1626,7 @@ app.get('/api/folha-pagamento/:mes', async (req, res) => {
         // Usar SQLite local
         console.log('Usando SQLite local para folha de pagamento...');
         const query = `
-            SELECT fp.*, f.nome as nome_funcionario, f.tipo 
+            SELECT fp.*, f.nome as nome_funcionario 
             FROM folha_pagamento fp 
             LEFT JOIN funcionarios f ON fp.id_funcionario = f.id
             WHERE fp.mes_referencia = ?
@@ -1896,165 +1806,13 @@ app.post('/api/folha-pagamento', async (req, res) => {
     }
 });
 
-// GET folha-pagamento por ID
-app.get('/api/folha-pagamento/por-id/:id', async (req, res) => {
-    console.log('=== GET /api/folha-pagamento/por-id/:id ===');
-    console.log('ID:', req.params.id);
-    console.log('useSupabase:', useSupabase);
-    
-    const { id } = req.params;
-    
-    if (useSupabase) {
-        // Usar PostgreSQL direto
-        console.log('Buscando folha de pagamento por ID no PostgreSQL...');
-        const { Client } = require('pg');
-        
-        try {
-            const poolerUrl = databaseUrl.replace(
-                'postgresql://postgres:tiVW2cmpeVStByLm@db.yuwddqxdnyjvilbmjooc.supabase.co:5432/postgres',
-                'postgresql://postgres.yuwddqxdnyjvilbmjooc:tiVW2cmpeVStByLm@aws-1-sa-east-1.pooler.supabase.com:6543/postgres'
-            );
-            
-            const client = new Client({
-                connectionString: poolerUrl,
-                ssl: { rejectUnauthorized: false },
-                connectionTimeoutMillis: 10000,
-                query_timeout: 10000
-            });
-            
-            await client.connect();
-            
-            const result = await client.query('SELECT * FROM folha_pagamento WHERE id = $1', [id]);
-            
-            console.log('Folha de pagamento encontrada por ID no PostgreSQL:', result.rows.length, 'registros');
-            await client.end();
-            
-            if (result.rows.length === 0) {
-                return res.status(404).json({ error: 'Folha de pagamento não encontrada' });
-            }
-            
-            res.json(result.rows[0]);
-            
-        } catch (pgError) {
-            console.log('PostgreSQL falhou, usando SQLite fallback:', pgError.message);
-            
-            // Fallback para SQLite
-            db.get('SELECT * FROM folha_pagamento WHERE id = ?', [id], (err, row) => {
-                if (err) {
-                    console.error('Erro ao buscar folha de pagamento por ID:', err);
-                    return res.status(500).json({ error: err.message });
-                }
-                if (!row) {
-                    return res.status(404).json({ error: 'Folha de pagamento não encontrada' });
-                }
-                res.json(row);
-            });
-        }
-    } else {
-        // SQLite
-        db.get('SELECT * FROM folha_pagamento WHERE id = ?', [id], (err, row) => {
-            if (err) {
-                console.error('Erro ao buscar folha de pagamento por ID:', err);
-                return res.status(500).json({ error: err.message });
-            }
-            if (!row) {
-                return res.status(404).json({ error: 'Folha de pagamento não encontrada' });
-            }
-            res.json(row);
-        });
-    }
-});
-
-// PUT folha-pagamento (atualizar)
-app.put('/api/folha-pagamento/:id', async (req, res) => {
-    console.log('=== PUT /api/folha-pagamento/:id ===');
-    console.log('ID:', req.params.id);
-    console.log('Dados recebidos:', req.body);
-    console.log('useSupabase:', useSupabase);
-    
-    const { id } = req.params;
-    const { ajustes } = req.body;
-    
-    if (useSupabase) {
-        // Usar PostgreSQL direto
-        console.log('Atualizando folha de pagamento no PostgreSQL...');
-        const { Client } = require('pg');
-        
-        try {
-            const poolerUrl = databaseUrl.replace(
-                'postgresql://postgres:tiVW2cmpeVStByLm@db.yuwddqxdnyjvilbmjooc.supabase.co:5432/postgres',
-                'postgresql://postgres.yuwddqxdnyjvilbmjooc:tiVW2cmpeVStByLm@aws-1-sa-east-1.pooler.supabase.com:6543/postgres'
-            );
-            
-            const client = new Client({
-                connectionString: poolerUrl,
-                ssl: { rejectUnauthorized: false },
-                connectionTimeoutMillis: 10000,
-                query_timeout: 10000
-            });
-            
-            await client.connect();
-            
-            const result = await client.query(
-                'UPDATE folha_pagamento SET ajustes = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
-                [ajustes, id]
-            );
-            
-            console.log('Folha de pagamento atualizada no PostgreSQL:', result.rows.length, 'registros');
-            await client.end();
-            
-            if (result.rows.length === 0) {
-                return res.status(404).json({ error: 'Folha de pagamento não encontrada' });
-            }
-            
-            res.json(result.rows[0]);
-            
-        } catch (pgError) {
-            console.log('PostgreSQL falhou, usando SQLite fallback:', pgError.message);
-            
-            // Fallback para SQLite
-            db.run('UPDATE folha_pagamento SET ajustes = ?, updated_at = datetime("now") WHERE id = ?', [ajustes, id], function(err) {
-                if (err) {
-                    console.error('Erro ao atualizar folha de pagamento:', err);
-                    return res.status(500).json({ error: err.message });
-                }
-                console.log('Folha de pagamento atualizada para o ID:', id);
-                res.json({ message: 'Folha de pagamento atualizada com sucesso!' });
-            });
-        }
-    } else {
-        // SQLite
-        db.run('UPDATE folha_pagamento SET ajustes = ?, updated_at = datetime("now") WHERE id = ?', [ajustes, id], function(err) {
-            if (err) {
-                console.error('Erro ao atualizar folha de pagamento:', err);
-                return res.status(500).json({ error: err.message });
-            }
-            console.log('Folha de pagamento atualizada para o ID:', id);
-            res.json({ message: 'Folha de pagamento atualizada com sucesso!' });
-        });
-    }
-});
-
-// OPTIONS para CORS preflight
-app.options('/api/folha-pagamento/:mes', (req, res) => {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    res.sendStatus(200);
-});
-
 // DELETE folha-pagamento
 app.delete('/api/folha-pagamento/:mes', async (req, res) => {
     console.log('=== DELETE /api/folha-pagamento/:mes ===');
     console.log('Mês:', req.params.mes);
-    console.log('Headers:', req.headers);
     
     try {
         const { mes } = req.params;
-        
-        if (!mes || !/^\d{4}-\d{2}$/.test(mes)) {
-            return res.status(400).json({ error: 'Formato de mês inválido. Use YYYY-MM' });
-        }
         
         if (useSupabase) {
             // Usar PostgreSQL direto
@@ -2207,13 +1965,7 @@ app.post('/api/gerar-folha/:mes', async (req, res) => {
                         // Verificar meta
                         const totalMaquinas = qtdGrandeSemDesconto + qtdGrandeComDesconto + qtdPequenaSemDesconto + qtdPequenaComDesconto;
                         if (totalMaquinas >= func.meta_maquinas) {
-                            // Prêmio por meta: a cada 10 máquinas vendidas, ganha o prêmio
-                            const vezesBateuMeta = Math.floor(totalMaquinas / func.meta_maquinas);
-                            const premioTotal = vezesBateuMeta * (func.premio_meta || 1000);
-                            // Bônus por meta: ganha apenas uma vez quando bate a meta pela primeira vez
-                            const bonusTotal = func.bonus_meta || 1000;
-                            // Total = prêmio (multiplicado) + bônus (apenas uma vez)
-                            bonus = premioTotal + bonusTotal;
+                            bonus = func.bonus_meta;
                         }
                         
                         // Detalhamento das comissões
@@ -2314,127 +2066,7 @@ app.post('/api/gerar-folha/:mes', async (req, res) => {
         } else {
             // Usar SQLite local
             console.log('Usando SQLite local para gerar folha...');
-            
-            try {
-                // Buscar funcionários ativos
-                const funcionarios = await new Promise((resolve, reject) => {
-                    db.all('SELECT * FROM funcionarios WHERE ativo = 1', (err, rows) => {
-                        if (err) reject(err);
-                        else resolve(rows);
-                    });
-                });
-                
-                console.log('Funcionários encontrados:', funcionarios.length);
-                
-                // Buscar vendas do mês
-                const vendas = await new Promise((resolve, reject) => {
-                    const mesInicio = `${mes}-01`;
-                    const mesFim = `${mes}-31`;
-                    db.all('SELECT * FROM vendas WHERE data_venda BETWEEN ? AND ?', [mesInicio, mesFim], (err, rows) => {
-                        if (err) reject(err);
-                        else resolve(rows);
-                    });
-                });
-                
-                console.log('Vendas encontradas:', vendas.length);
-                
-                // Buscar produção do mês
-                const producao = await new Promise((resolve, reject) => {
-                    const mesInicio = `${mes}-01`;
-                    const mesFim = `${mes}-31`;
-                    db.all('SELECT * FROM producao WHERE data_producao BETWEEN ? AND ?', [mesInicio, mesFim], (err, rows) => {
-                        if (err) reject(err);
-                        else resolve(rows);
-                    });
-                });
-                
-                console.log('Produção encontrada:', producao.length);
-                
-                // Apagar folha existente do mês
-                await new Promise((resolve, reject) => {
-                    db.run('DELETE FROM folha_pagamento WHERE mes_referencia = ?', [mes], (err) => {
-                        if (err) reject(err);
-                        else resolve();
-                    });
-                });
-                
-                // Gerar folha para cada funcionário
-                const folhaGerada = [];
-                
-                for (const func of funcionarios) {
-                    let salarioBase = func.salario_base || 0;
-                    let comissoes = 0;
-                    let bonus = 0;
-                    
-                    if (func.tipo === 'vendedora') {
-                        // Calcular comissões de vendas
-                        const vendasFuncionario = vendas.filter(v => v.id_funcionario === func.id);
-                        vendasFuncionario.forEach(v => {
-                            const valorMaquina = v.tipo_maquina === 'grande' ? func.comissao_maquina_grande : func.comissao_maquina_pequena;
-                            comissoes += v.quantidade_maquinas * valorMaquina;
-                        });
-                        
-                        // Calcular bônus por meta
-                        const totalMaquinas = vendasFuncionario.reduce((sum, v) => sum + v.quantidade_maquinas, 0);
-                        if (totalMaquinas >= (func.meta_maquinas || 10)) {
-                            // Prêmio por meta: a cada 10 máquinas vendidas, ganha o prêmio
-                            const vezesBateuMeta = Math.floor(totalMaquinas / (func.meta_maquinas || 10));
-                            const premioTotal = vezesBateuMeta * (func.premio_meta || 1000);
-                            // Bônus por meta: ganha apenas uma vez quando bate a meta pela primeira vez
-                            const bonusTotal = func.bonus_meta || 1000;
-                            // Total = prêmio (multiplicado) + bônus (apenas uma vez)
-                            bonus = premioTotal + bonusTotal;
-                        }
-                    } else if (func.tipo === 'producao') {
-                        // Calcular comissões de produção
-                        const producaoFuncionario = producao.filter(p => p.id_funcionario === func.id);
-                        const totalMaquinas = producaoFuncionario.reduce((sum, p) => sum + p.maquinas_produzidas, 0);
-                        comissoes = totalMaquinas * (func.comissao_maquina_producao || 100);
-                        
-                        // Calcular bônus por meta
-                        if (totalMaquinas >= (func.meta_maquinas || 10)) {
-                            bonus = func.bonus_meta || 0;
-                        }
-                    }
-                    
-                    const total = salarioBase + comissoes + bonus;
-                    
-                    // Inserir folha
-                    await new Promise((resolve, reject) => {
-                        db.run(
-                            'INSERT INTO folha_pagamento (id_funcionario, mes_referencia, salario_base, comissoes, bonus, total, data_geracao) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                            [func.id, mes, salarioBase, comissoes, bonus, total, new Date().toISOString().split('T')[0]],
-                            (err) => {
-                                if (err) reject(err);
-                                else resolve();
-                            }
-                        );
-                    });
-                    
-                    folhaGerada.push({
-                        id_funcionario: func.id,
-                        nome_funcionario: func.nome,
-                        tipo: func.tipo,
-                        mes_referencia: mes,
-                        salario_base: salarioBase,
-                        comissoes: comissoes,
-                        bonus: bonus,
-                        total: total,
-                        data_geracao: new Date().toISOString().split('T')[0]
-                    });
-                }
-                
-                console.log('Folha de pagamento gerada com sucesso!');
-                res.json({ 
-                    message: 'Folha de pagamento gerada com sucesso!',
-                    folha: folhaGerada,
-                    total_funcionarios: folhaGerada.length
-                });
-                
-            } catch (sqliteError) {
-                console.error('Erro ao gerar folha no SQLite:', sqliteError);
-                res.status(500).json({ error: sqliteError.message });
-            }
+            res.status(501).json({ error: 'Geração de folha não implementada para SQLite local' });
         }
     } catch (error) {
         console.error('Erro geral:', error);
@@ -2446,15 +2078,12 @@ app.post('/api/gerar-folha/:mes', async (req, res) => {
 app.listen(PORT, async () => {
     console.log(`Servidor ERP rodando em http://localhost:${PORT}`);
     
-    // Listar todas as rotas registradas
-    console.log('\n=== ROTAS REGISTRADAS ===');
-    app._router.stack.forEach((r) => {
-        if (r.route && r.route.path) {
-            console.log(`${Object.keys(r.route.methods).join(', ').toUpperCase()} ${r.route.path}`);
-        }
-    });
-    console.log('========================\n');
-    
     // Criar tabelas no Supabase se estiver usando
     await createSupabaseTables();
+    
+    console.log('Endpoints disponíveis:');
+    console.log('- GET /api/funcionarios');
+    console.log('- POST /api/funcionarios');
+    console.log('- GET /api/vendas');
+    console.log('- POST /api/vendas');
 });
