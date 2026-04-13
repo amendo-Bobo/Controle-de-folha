@@ -2,10 +2,10 @@ const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
 const path = require('path');
-// require('dotenv').config(); // Comentado para teste local
+require('dotenv').config();
 
-// Importar Supabase (comentado para teste local)
-// const { createClient } = require('@supabase/supabase-js');
+// Importar Supabase
+const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -16,15 +16,29 @@ console.log('Iniciando servidor...');
 const supabaseUrl = process.env.SUPABASE_URL || 'https://yuwddqxdnyjvilbmjooc.supabase.co';
 const supabaseKey = process.env.SUPABASE_PASSWORD || 'tiVW2cmpeVStByLm';
 
-// Usar Supabase se estiver configurado no Render, senão SQLite local
-const useSupabase = process.env.USE_SUPABASE === 'true';
+// Forçar IPv4 para evitar ENETUNREACH
+const supabase = createClient(supabaseUrl, supabaseKey, {
+    db: {
+        schema: 'public'
+    },
+    auth: {
+        persistSession: false,
+        autoRefreshToken: false
+    },
+    global: {
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        }
+    }
+});
 
-console.log('useSupabase:', useSupabase);
-if (useSupabase) {
-    console.log('Usando Supabase (PostgreSQL)');
-} else {
-    console.log('Usando SQLite local');
-}
+// Verificar se está usando Supabase
+const databaseUrl = process.env.DATABASE_URL;
+const useSupabase = databaseUrl && databaseUrl.includes('supabase');
+
+console.log('DATABASE_URL:', databaseUrl ? 'Configurada' : 'Não configurada');
+console.log('Usando Supabase:', useSupabase);
 
 // Função para criar tabelas no Supabase (só se usar)
 async function createSupabaseTables() {
