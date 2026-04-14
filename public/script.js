@@ -1652,22 +1652,22 @@ async function exportarPDF() {
             
             // Cabeçalho da tabela com espaçamento otimizado
             doc.setFontSize(9);
-            const prodColWidths = [22, 12, 18, 18, 18, 18, 18, 18]; // Largura das colunas em mm
+            const prodColWidths = [28, 12, 20, 18, 18, 18, 18, 20]; // Largura das colunas em mm
             let xPos = marginLeft;
             
             doc.text('Funcionário', xPos, yPosition);
             xPos += prodColWidths[0];
-            doc.text('Máquinas', xPos, yPosition);
+            doc.text('Máqs', xPos, yPosition);
             xPos += prodColWidths[1];
-            doc.text('Salário Base', xPos, yPosition);
+            doc.text('Sal. Base', xPos, yPosition);
             xPos += prodColWidths[2];
-            doc.text('Comissão/Máq', xPos, yPosition);
+            doc.text('Comis./Máq', xPos, yPosition);
             xPos += prodColWidths[3];
-            doc.text('Total Comiss', xPos, yPosition);
+            doc.text('Tot. Comis', xPos, yPosition);
             xPos += prodColWidths[4];
-            doc.text('Descontos', xPos, yPosition);
+            doc.text('Desc.', xPos, yPosition);
             xPos += prodColWidths[5];
-            doc.text('Total Líquido', xPos, yPosition);
+            doc.text('Tot. Líquido', xPos, yPosition);
             xPos += prodColWidths[6];
             doc.text('Total', xPos, yPosition);
             
@@ -1691,17 +1691,17 @@ async function exportarPDF() {
                     xPos = marginLeft;
                     doc.text('Funcionário', xPos, yPosition);
                     xPos += prodColWidths[0];
-                    doc.text('Máquinas', xPos, yPosition);
+                    doc.text('Máqs', xPos, yPosition);
                     xPos += prodColWidths[1];
-                    doc.text('Salário Base', xPos, yPosition);
+                    doc.text('Sal. Base', xPos, yPosition);
                     xPos += prodColWidths[2];
-                    doc.text('Comissão/Máq', xPos, yPosition);
+                    doc.text('Comis./Máq', xPos, yPosition);
                     xPos += prodColWidths[3];
-                    doc.text('Total Comiss', xPos, yPosition);
+                    doc.text('Tot. Comis', xPos, yPosition);
                     xPos += prodColWidths[4];
-                    doc.text('Descontos', xPos, yPosition);
+                    doc.text('Desc.', xPos, yPosition);
                     xPos += prodColWidths[5];
-                    doc.text('Total Líquido', xPos, yPosition);
+                    doc.text('Tot. Líquido', xPos, yPosition);
                     xPos += prodColWidths[6];
                     doc.text('Total', xPos, yPosition);
                     
