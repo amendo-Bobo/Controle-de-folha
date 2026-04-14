@@ -2126,12 +2126,30 @@ async function gerarPDFHolerite(funcionario, folha, mes, totalMaquinas = 0) {
         }
     }
     
+    // Vales
+    if (folha.vales && folha.vales > 0) {
+        doc.text("200", 12, yItem);
+        doc.text("VALES", 30, yItem);
+        doc.text(folha.vales.toFixed(2), 110, yItem);
+        doc.text(folha.vales.toFixed(2), 170, yItem);
+        yItem += 5;
+    }
+    
+    // Outros Descontos
+    if (folha.outros_descontos && folha.outros_descontos > 0) {
+        doc.text("201", 12, yItem);
+        doc.text("OUTROS DESCONTOS", 30, yItem);
+        doc.text(folha.outros_descontos.toFixed(2), 110, yItem);
+        doc.text(folha.outros_descontos.toFixed(2), 170, yItem);
+        yItem += 5;
+    }
+    
     // 4. Rodapé de Valores
     doc.rect(125, 145, 75, 15);
     doc.setFont("helvetica", "bold");
     
     totalProventos = folha.salario_base + folha.comissoes + (folha.bonus || 0) + totalAjustesProventos;
-    totalDescontos = totalAjustesDescontos;
+    totalDescontos = totalAjustesDescontos + (folha.vales || 0) + (folha.outros_descontos || 0);
     totalLiquido = totalProventos - totalDescontos;
     
     doc.text("Total dos Vencimentos", 127, 150);
@@ -2276,7 +2294,7 @@ async function gerarPDFHolerite(funcionario, folha, mes, totalMaquinas = 0) {
     doc.setFont("helvetica", "bold");
     
     totalProventos = folha.salario_base + folha.comissoes + (folha.bonus || 0) + totalAjustesProventos;
-    totalDescontos = totalAjustesDescontos;
+    totalDescontos = totalAjustesDescontos + (folha.vales || 0) + (folha.outros_descontos || 0);
     totalLiquido = totalProventos - totalDescontos;
     
     doc.text("Total dos Vencimentos", 127, 150);
@@ -2382,12 +2400,30 @@ async function gerarPDFHolerite(funcionario, folha, mes, totalMaquinas = 0) {
         }
     }
     
+    // Vales
+    if (folha.vales && folha.vales > 0) {
+        doc.text("200", 12, yItem);
+        doc.text("VALES", 30, yItem);
+        doc.text(folha.vales.toFixed(2), 110, yItem);
+        doc.text(folha.vales.toFixed(2), 170, yItem);
+        yItem += 5;
+    }
+    
+    // Outros Descontos
+    if (folha.outros_descontos && folha.outros_descontos > 0) {
+        doc.text("201", 12, yItem);
+        doc.text("OUTROS DESCONTOS", 30, yItem);
+        doc.text(folha.outros_descontos.toFixed(2), 110, yItem);
+        doc.text(folha.outros_descontos.toFixed(2), 170, yItem);
+        yItem += 5;
+    }
+    
     // 4. Rodapé de Valores
     doc.rect(125, 145, 75, 15);
     doc.setFont("helvetica", "bold");
     
     totalProventos = folha.salario_base + folha.comissoes + (folha.bonus || 0) + totalAjustesProventos;
-    totalDescontos = totalAjustesDescontos;
+    totalDescontos = totalAjustesDescontos + (folha.vales || 0) + (folha.outros_descontos || 0);
     totalLiquido = totalProventos - totalDescontos;
     
     doc.text("Total dos Vencimentos", 127, 150);
