@@ -198,6 +198,7 @@ function setupFormFuncionario() {
         const campoBonusMetaExtra = document.getElementById('campo-bonus-meta-extra');
         const campoSalario = document.getElementById('campo-salario');
         const campoComissaoProducao = document.getElementById('campo-comissao-producao');
+        const campoQuinzena = document.getElementById('campo-quinzena');
         
         if (this.value === 'vendedora') {
             campoComissaoGrande.style.display = 'block';
@@ -208,6 +209,7 @@ function setupFormFuncionario() {
             campoBonusMetaExtra.style.display = 'block';
             campoSalario.style.display = 'none';
             campoComissaoProducao.style.display = 'none';
+            campoQuinzena.style.display = 'none';
         } else if (this.value === 'producao') {
             campoComissaoGrande.style.display = 'none';
             campoComissaoPequena.style.display = 'none';
@@ -217,6 +219,7 @@ function setupFormFuncionario() {
             campoBonusMetaExtra.style.display = 'none';
             campoSalario.style.display = 'block';
             campoComissaoProducao.style.display = 'block';
+            campoQuinzena.style.display = 'block';
         } else {
             campoComissaoGrande.style.display = 'none';
             campoComissaoPequena.style.display = 'none';
@@ -224,8 +227,9 @@ function setupFormFuncionario() {
             campoMeta.style.display = 'none';
             campoBonusMeta.style.display = 'none';
             campoBonusMetaExtra.style.display = 'none';
-            campoSalario.style.display = 'none';
+            campoSalario.style.display = 'block';
             campoComissaoProducao.style.display = 'none';
+            campoQuinzena.style.display = 'block';
         }
     });
 }
