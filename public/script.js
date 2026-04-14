@@ -609,6 +609,26 @@ async function salvarVale() {
     }
 }
 
+async function deletarVale(id) {
+    if (confirm('Tem certeza que deseja excluir este vale?')) {
+        try {
+            const response = await fetch(`${API_BASE}/api/vales/${id}`, {
+                method: 'DELETE'
+            });
+            
+            if (response.ok) {
+                carregarVales();
+                alert('Vale excluído com sucesso!');
+            } else {
+                alert('Erro ao excluir vale!');
+            }
+        } catch (error) {
+            console.error('Erro ao excluir vale:', error);
+            alert('Erro ao excluir vale!');
+        }
+    }
+}
+
 async function carregarFuncionariosVales() {
     try {
         const response = await fetch(`${API_BASE}/api/funcionarios`);

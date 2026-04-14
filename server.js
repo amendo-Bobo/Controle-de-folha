@@ -651,6 +651,87 @@ app.post('/api/vales', async (req, res) => {
     }
 });
 
+// DELETE vales
+app.delete('/api/vales/:id', async (req, res) => {
+    console.log('=== DELETE /api/vales/:id ===');
+    console.log('ID do vale:', req.params.id);
+    
+    try {
+        const { id } = req.params;
+        
+        if (useSupabase) {
+            // Usar PostgreSQL direto
+            console.log('Deletando vale no PostgreSQL...');
+            const { Client } = require('pg');
+            
+            try {
+                const poolerUrl = databaseUrl.replace(
+                    'postgresql://postgres:tiVW2cmpeVStByLm@db.yuwddqxdnyjvilbmjooc.supabase.co:5432/postgres',
+                    'postgresql://postgres.yuwddqxdnyjvilbmjooc:tiVW2cmpeVStByLm@aws-1-sa-east-1.pooler.supabase.com:6543/postgres'
+                );
+                
+                const client = new Client({
+                    connectionString: poolerUrl,
+                    ssl: { rejectUnauthorized: false },
+                    connectionTimeoutMillis: 10000,
+                    query_timeout: 10000
+                });
+                
+                await client.connect();
+                
+                const result = await client.query('DELETE FROM vales WHERE id = $1 RETURNING *', [id]);
+                
+                console.log('Vale deletado no PostgreSQL:', result.rows[0]);
+                await client.end();
+                
+                if (result.rows.length === 0) {
+                    return res.status(404).json({ error: 'Vale não encontrado' });
+                }
+                
+                res.json({ message: 'Vale deletado com sucesso' });
+                
+            } catch (pgError) {
+                console.log('PostgreSQL falhou, usando SQLite fallback:', pgError.message);
+                
+                // Fallback para SQLite
+                db.run('DELETE FROM vales WHERE id = ?', [id], function(err) {
+                    if (err) {
+                        console.error('Erro ao deletar vale no SQLite:', err);
+                        return res.status(500).json({ error: err.message });
+                    }
+                    
+                    if (this.changes === 0) {
+                        console.error('Vale não encontrado:', id);
+                        return res.status(404).json({ error: 'Vale não encontrado' });
+                    }
+                    
+                    console.log('Vale deletado com ID:', id);
+                    res.json({ message: 'Vale deletado com sucesso' });
+                });
+            }
+        } else {
+            // Usar SQLite local
+            db.run('DELETE FROM vales WHERE id = ?', [id], function(err) {
+                if (err) {
+                    console.error('Erro ao deletar vale no SQLite:', err);
+                    return res.status(500).json({ error: err.message });
+                }
+                
+                if (this.changes === 0) {
+                    console.error('Vale não encontrado:', id);
+                    return res.status(404).json({ error: 'Vale não encontrado' });
+                }
+                
+                console.log('Vale deletado com ID:', id);
+                res.json({ message: 'Vale deletado com sucesso' });
+            });
+        }
+    } catch (error) {
+        console.error('Erro geral:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // GET funcionarios
 app.get('/api/funcionarios', async (req, res) => {
     console.log('=== GET /api/funcionarios chamado ===');
