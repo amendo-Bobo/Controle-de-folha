@@ -60,17 +60,29 @@ function toggleCamposFuncionario(tipo) {
     // Campos para PRODUÇÃO
     const camposProducao = [
         'campo-salario',
-        'campo-comissao-producao'
+        'campo-comissao-producao',
+        'campo-quinzena'
+    ];
+    
+    // Campos para ADMINISTRATIVO
+    const camposAdministrativo = [
+        'campo-salario',
+        'campo-quinzena'
     ];
     
     if (tipo === 'vendedora') {
-        // Mostrar campos de vendedora, esconder de produção
+        // Mostrar campos de vendedora, esconder de produção e administrativo
         camposVendedora.forEach(id => {
             const campo = document.getElementById(id);
             if (campo) campo.style.display = 'block';
         });
         
         camposProducao.forEach(id => {
+            const campo = document.getElementById(id);
+            if (campo) campo.style.display = 'none';
+        });
+        
+        camposAdministrativo.forEach(id => {
             const campo = document.getElementById(id);
             if (campo) campo.style.display = 'none';
         });
@@ -87,9 +99,30 @@ function toggleCamposFuncionario(tipo) {
             if (campo) campo.style.display = 'block';
         });
         
+        camposAdministrativo.forEach(id => {
+            const campo = document.getElementById(id);
+            if (campo) campo.style.display = 'none';
+        });
+        
+    } else if (tipo === 'administrativo') {
+        // Esconder campos de vendedora e produção, mostrar de administrativo
+        camposVendedora.forEach(id => {
+            const campo = document.getElementById(id);
+            if (campo) campo.style.display = 'none';
+        });
+        
+        camposProducao.forEach(id => {
+            const campo = document.getElementById(id);
+            if (campo) campo.style.display = 'none';
+        });
+        
+        camposAdministrativo.forEach(id => {
+            const campo = document.getElementById(id);
+            if (campo) campo.style.display = 'block';
+        });
     } else {
         // Tipo não selecionado - esconder tudo exceto nome e tipo
-        [...camposVendedora, ...camposProducao].forEach(id => {
+        [...camposVendedora, ...camposProducao, ...camposAdministrativo].forEach(id => {
             const campo = document.getElementById(id);
             if (campo) campo.style.display = 'none';
         });
@@ -457,6 +490,8 @@ async function salvarFuncionario() {
     const bonusMeta = parseFloat(document.getElementById('func-bonus-meta').value) || 1000;
     const salario = parseFloat(document.getElementById('func-salario').value) || 3000;
     const comissaoProducao = parseFloat(document.getElementById('func-comissao-producao').value) || 100;
+    const dia15Percent = parseFloat(document.getElementById('func-dia-15-percent').value) || 50;
+    const dia30Percent = parseFloat(document.getElementById('func-dia-30-percent').value) || 50;
     
     if (!nome || !tipo) {
         alert('Preencha todos os campos obrigatórios!');
@@ -476,8 +511,10 @@ async function salvarFuncionario() {
                 meta_maquinas: tipo === 'vendedora' ? meta : 0,
                 premio_meta: tipo === 'vendedora' ? premioMeta : 0,
                 bonus_meta: tipo === 'vendedora' ? bonusMeta : 0,
-                salario_base: tipo === 'producao' ? salario : 0,
-                comissao_maquina_producao: tipo === 'producao' ? comissaoProducao : 0
+                salario_base: tipo === 'producao' || tipo === 'administrativo' ? salario : 0,
+                comissao_maquina_producao: tipo === 'producao' ? comissaoProducao : 0,
+                dia_15_percent: tipo === 'producao' || tipo === 'administrativo' ? dia15Percent : 50,
+                dia_30_percent: tipo === 'producao' || tipo === 'administrativo' ? dia30Percent : 50
             })
         });
         
@@ -983,6 +1020,8 @@ function editarFuncionario(id) {
                 document.getElementById('func-bonus-meta').value = funcionario.bonus_meta || 1000;
                 document.getElementById('func-salario').value = funcionario.salario_base || 0;
                 document.getElementById('func-comissao-producao').value = funcionario.comissao_maquina_producao || 100;
+                document.getElementById('func-dia-15-percent').value = funcionario.dia_15_percent || 50;
+                document.getElementById('func-dia-30-percent').value = funcionario.dia_30_percent || 50;
                 
                 // Mostrar/esconder campos conforme o tipo
                 toggleCamposFuncionario(funcionario.tipo);
@@ -1017,6 +1056,8 @@ async function atualizarFuncionario(id) {
     const bonusMeta = parseFloat(document.getElementById('func-bonus-meta').value) || 1000;
     const salario = parseFloat(document.getElementById('func-salario').value) || 0;
     const comissaoProducao = parseFloat(document.getElementById('func-comissao-producao').value) || 100;
+    const dia15Percent = parseFloat(document.getElementById('func-dia-15-percent').value) || 50;
+    const dia30Percent = parseFloat(document.getElementById('func-dia-30-percent').value) || 50;
     
     if (!nome || !tipo) {
         alert('Preencha todos os campos obrigatórios!');
@@ -1036,8 +1077,10 @@ async function atualizarFuncionario(id) {
                 meta_maquinas: tipo === 'vendedora' ? meta : 0,
                 premio_meta: tipo === 'vendedora' ? premioMeta : 0,
                 bonus_meta: tipo === 'vendedora' ? bonusMeta : 0,
-                salario_base: tipo === 'producao' ? salario : 0,
-                comissao_maquina_producao: tipo === 'producao' ? comissaoProducao : 0
+                salario_base: tipo === 'producao' || tipo === 'administrativo' ? salario : 0,
+                comissao_maquina_producao: tipo === 'producao' ? comissaoProducao : 0,
+                dia_15_percent: tipo === 'producao' || tipo === 'administrativo' ? dia15Percent : 50,
+                dia_30_percent: tipo === 'producao' || tipo === 'administrativo' ? dia30Percent : 50
             })
         });
         
