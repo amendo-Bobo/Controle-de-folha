@@ -76,7 +76,7 @@ async function createSupabaseTables() {
                 CREATE TABLE IF NOT EXISTS funcionarios (
                     id BIGSERIAL PRIMARY KEY,
                     nome TEXT NOT NULL,
-                    tipo TEXT NOT NULL CHECK(tipo IN ('vendedora', 'producao')),
+                    tipo TEXT NOT NULL CHECK(tipo IN ('vendedora', 'producao', 'administrativo')),
                     comissao_maquina_grande REAL DEFAULT 450,
                     comissao_maquina_pequena REAL DEFAULT 250,
                     comissao_extra_desconto REAL DEFAULT 100,
@@ -85,6 +85,8 @@ async function createSupabaseTables() {
                     meta_maquinas INTEGER DEFAULT 10,
                     premio_meta REAL DEFAULT 1000,
                     bonus_meta REAL DEFAULT 1000,
+                    dia_15_percent REAL DEFAULT 50,
+                    dia_30_percent REAL DEFAULT 50,
                     ativo BOOLEAN DEFAULT true
                 )
             `);
@@ -95,6 +97,21 @@ async function createSupabaseTables() {
                 console.log('Coluna premio_meta adicionada (se não existia)');
             } catch (error) {
                 console.log('Coluna premio_meta já existe ou erro ao adicionar:', error.message);
+            }
+            
+            // Adicionar colunas de quinzena se não existirem
+            try {
+                await client.query(`ALTER TABLE funcionarios ADD COLUMN IF NOT EXISTS dia_15_percent REAL DEFAULT 50`);
+                console.log('Coluna dia_15_percent adicionada (se não existia)');
+            } catch (error) {
+                console.log('Coluna dia_15_percent já existe ou erro ao adicionar:', error.message);
+            }
+            
+            try {
+                await client.query(`ALTER TABLE funcionarios ADD COLUMN IF NOT EXISTS dia_30_percent REAL DEFAULT 50`);
+                console.log('Coluna dia_30_percent adicionada (se não existia)');
+            } catch (error) {
+                console.log('Coluna dia_30_percent já existe ou erro ao adicionar:', error.message);
             }
             
             // Criar tabela vendas
@@ -201,7 +218,7 @@ const db = new sqlite3.Database('./erp.db', (err) => {
         db.run(`CREATE TABLE IF NOT EXISTS funcionarios (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nome TEXT NOT NULL,
-            tipo TEXT NOT NULL CHECK(tipo IN ('vendedora', 'producao')),
+            tipo TEXT NOT NULL CHECK(tipo IN ('vendedora', 'producao', 'administrativo')),
             comissao_maquina_grande REAL DEFAULT 450,
             comissao_maquina_pequena REAL DEFAULT 250,
             comissao_extra_desconto REAL DEFAULT 100,
@@ -210,6 +227,8 @@ const db = new sqlite3.Database('./erp.db', (err) => {
             meta_maquinas INTEGER DEFAULT 10,
             premio_meta REAL DEFAULT 1000,
             bonus_meta REAL DEFAULT 1000,
+            dia_15_percent REAL DEFAULT 50,
+            dia_30_percent REAL DEFAULT 50,
             ativo BOOLEAN DEFAULT 1
         )`);
         
@@ -221,6 +240,23 @@ const db = new sqlite3.Database('./erp.db', (err) => {
                 console.log('Coluna premio_meta já existe ou erro ao adicionar:', err.message);
             } else if (!err) {
                 console.log('Coluna premio_meta adicionada (se não existia)');
+            }
+        });
+        
+        // Adicionar colunas de quinzena se não existirem
+        db.run(`ALTER TABLE funcionarios ADD COLUMN dia_15_percent REAL DEFAULT 50`, (err) => {
+            if (err && !err.message.includes('duplicate column name')) {
+                console.log('Coluna dia_15_percent já existe ou erro ao adicionar:', err.message);
+            } else if (!err) {
+                console.log('Coluna dia_15_percent adicionada (se não existia)');
+            }
+        });
+        
+        db.run(`ALTER TABLE funcionarios ADD COLUMN dia_30_percent REAL DEFAULT 50`, (err) => {
+            if (err && !err.message.includes('duplicate column name')) {
+                console.log('Coluna dia_30_percent já existe ou erro ao adicionar:', err.message);
+            } else if (!err) {
+                console.log('Coluna dia_30_percent adicionada (se não existia)');
             }
         });
 
@@ -419,7 +455,9 @@ app.post('/api/funcionarios', async (req, res) => {
             comissao_maquina_producao,
             meta_maquinas,
             premio_meta,
-            bonus_meta
+            bonus_meta,
+            dia_15_percent,
+            dia_30_percent
         } = req.body;
         
         // Validação básica
@@ -451,8 +489,8 @@ app.post('/api/funcionarios', async (req, res) => {
                 
                 const result = await client.query(
                     `INSERT INTO funcionarios (nome, tipo, comissao_maquina_grande, comissao_maquina_pequena, 
-                     comissao_extra_desconto, salario_base, comissao_maquina_producao, meta_maquinas, premio_meta, bonus_meta, ativo) 
-                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true) 
+                     comissao_extra_desconto, salario_base, comissao_maquina_producao, meta_maquinas, premio_meta, bonus_meta, dia_15_percent, dia_30_percent, ativo) 
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, true) 
                      RETURNING *`,
                     [
                         nome, 
@@ -464,7 +502,9 @@ app.post('/api/funcionarios', async (req, res) => {
                         Number(comissao_maquina_producao) || 100,
                         Number(meta_maquinas) || 10,
                         Number(premio_meta) || 1000,
-                        Number(bonus_meta) || 1000
+                        Number(bonus_meta) || 1000,
+                        Number(dia_15_percent) || 50,
+                        Number(dia_30_percent) || 50
                     ]
                 );
                 
@@ -477,7 +517,7 @@ app.post('/api/funcionarios', async (req, res) => {
                 console.log('PostgreSQL falhou, usando SQLite fallback:', pgError.message);
                 
                 // Fallback para SQLite
-                const sql = 'INSERT INTO funcionarios (nome, tipo, comissao_maquina_grande, comissao_maquina_pequena, comissao_extra_desconto, salario_base, comissao_maquina_producao, meta_maquinas, premio_meta, bonus_meta) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+                const sql = 'INSERT INTO funcionarios (nome, tipo, comissao_maquina_grande, comissao_maquina_pequena, comissao_extra_desconto, salario_base, comissao_maquina_producao, meta_maquinas, premio_meta, bonus_meta, dia_15_percent, dia_30_percent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
                 const params = [
                     nome, 
                     tipo, 
@@ -488,7 +528,9 @@ app.post('/api/funcionarios', async (req, res) => {
                     Number(comissao_maquina_producao) || 100,
                     Number(meta_maquinas) || 10,
                     Number(premio_meta) || 1000,
-                    Number(bonus_meta) || 1000
+                    Number(bonus_meta) || 1000,
+                    Number(dia_15_percent) || 50,
+                    Number(dia_30_percent) || 50
                 ];
                 
                 db.run(sql, params, function(err) {
@@ -509,13 +551,15 @@ app.post('/api/funcionarios', async (req, res) => {
                         meta_maquinas: Number(meta_maquinas) || 10,
                         premio_meta: Number(premio_meta) || 1000,
                         bonus_meta: Number(bonus_meta) || 1000,
+                        dia_15_percent: Number(dia_15_percent) || 50,
+                        dia_30_percent: Number(dia_30_percent) || 50,
                         ativo: true
                     });
                 });
             }
         } else {
             // Usar SQLite local
-            const sql = 'INSERT INTO funcionarios (nome, tipo, comissao_maquina_grande, comissao_maquina_pequena, comissao_extra_desconto, salario_base, comissao_maquina_producao, meta_maquinas, premio_meta, bonus_meta) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+            const sql = 'INSERT INTO funcionarios (nome, tipo, comissao_maquina_grande, comissao_maquina_pequena, comissao_extra_desconto, salario_base, comissao_maquina_producao, meta_maquinas, premio_meta, bonus_meta, dia_15_percent, dia_30_percent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
             const params = [
                 nome, 
                 tipo, 
@@ -526,7 +570,9 @@ app.post('/api/funcionarios', async (req, res) => {
                 Number(comissao_maquina_producao) || 100,
                 Number(meta_maquinas) || 10,
                 Number(premio_meta) || 1000,
-                Number(bonus_meta) || 1000
+                Number(bonus_meta) || 1000,
+                Number(dia_15_percent) || 50,
+                Number(dia_30_percent) || 50
             ];
             
             db.run(sql, params, function(err) {
@@ -547,6 +593,8 @@ app.post('/api/funcionarios', async (req, res) => {
                     meta_maquinas: Number(meta_maquinas) || 10,
                     premio_meta: Number(premio_meta) || 1000,
                     bonus_meta: Number(bonus_meta) || 1000,
+                    dia_15_percent: Number(dia_15_percent) || 50,
+                    dia_30_percent: Number(dia_30_percent) || 50,
                     ativo: true
                 });
             });
@@ -574,7 +622,10 @@ app.put('/api/funcionarios/:id', async (req, res) => {
             salario_base, 
             comissao_maquina_producao,
             meta_maquinas,
-            bonus_meta
+            premio_meta,
+            bonus_meta,
+            dia_15_percent,
+            dia_30_percent
         } = req.body;
         
         // Validação básica
@@ -606,8 +657,8 @@ app.put('/api/funcionarios/:id', async (req, res) => {
                     `UPDATE funcionarios SET 
                      nome = $1, tipo = $2, comissao_maquina_grande = $3, comissao_maquina_pequena = $4,
                      comissao_extra_desconto = $5, salario_base = $6, comissao_maquina_producao = $7,
-                     meta_maquinas = $8, bonus_meta = $9, updated_at = NOW()
-                     WHERE id = $10 RETURNING *`,
+                     meta_maquinas = $8, premio_meta = $9, bonus_meta = $10, dia_15_percent = $11, dia_30_percent = $12, updated_at = NOW()
+                     WHERE id = $13 RETURNING *`,
                     [
                         nome, 
                         tipo, 
@@ -617,7 +668,10 @@ app.put('/api/funcionarios/:id', async (req, res) => {
                         Number(salario_base) || 0, 
                         Number(comissao_maquina_producao) || 100,
                         Number(meta_maquinas) || 10,
+                        Number(premio_meta) || 1000,
                         Number(bonus_meta) || 1000,
+                        Number(dia_15_percent) || 50,
+                        Number(dia_30_percent) || 50,
                         id
                     ]
                 );
@@ -635,7 +689,7 @@ app.put('/api/funcionarios/:id', async (req, res) => {
             const sql = `UPDATE funcionarios SET 
                 nome = ?, tipo = ?, comissao_maquina_grande = ?, comissao_maquina_pequena = ?,
                 comissao_extra_desconto = ?, salario_base = ?, comissao_maquina_producao = ?,
-                meta_maquinas = ?, bonus_meta = ?
+                meta_maquinas = ?, premio_meta = ?, bonus_meta = ?, dia_15_percent = ?, dia_30_percent = ?
                 WHERE id = ?`;
             
             const params = [
@@ -647,7 +701,10 @@ app.put('/api/funcionarios/:id', async (req, res) => {
                 Number(salario_base) || 0, 
                 Number(comissao_maquina_producao) || 100,
                 Number(meta_maquinas) || 10,
+                Number(premio_meta) || 1000,
                 Number(bonus_meta) || 1000,
+                Number(dia_15_percent) || 50,
+                Number(dia_30_percent) || 50,
                 id
             ];
             
@@ -667,7 +724,10 @@ app.put('/api/funcionarios/:id', async (req, res) => {
                     salario_base: Number(salario_base) || 0, 
                     comissao_maquina_producao: Number(comissao_maquina_producao) || 100,
                     meta_maquinas: Number(meta_maquinas) || 10,
+                    premio_meta: Number(premio_meta) || 1000,
                     bonus_meta: Number(bonus_meta) || 1000,
+                    dia_15_percent: Number(dia_15_percent) || 50,
+                    dia_30_percent: Number(dia_30_percent) || 50,
                     ativo: true
                 });
             });
