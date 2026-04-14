@@ -2663,12 +2663,18 @@ app.delete('/api/folha-pagamento/:mes', async (req, res) => {
 app.post('/api/gerar-folha/:mes', async (req, res) => {
     console.log('=== POST /api/gerar-folha/:mes ===');
     console.log('Mês:', req.params.mes);
+    console.log('Quinzena:', req.body.quinzena);
     
     try {
         const { mes } = req.params;
+        const { quinzena } = req.body;
         
         if (!mes || !/^\d{4}-\d{2}$/.test(mes)) {
             return res.status(400).json({ error: 'Formato de mês inválido. Use YYYY-MM' });
+        }
+        
+        if (!quinzena || !['dia_15', 'dia_30', 'mensal'].includes(quinzena)) {
+            return res.status(400).json({ error: 'Quinzena inválida. Use dia_15, dia_30 ou mensal' });
         }
         
         if (useSupabase) {
@@ -2692,8 +2698,17 @@ app.post('/api/gerar-folha/:mes', async (req, res) => {
                 
                 await client.connect();
                 
-                // Buscar todos os funcionários ativos
-                const funcResult = await client.query('SELECT * FROM funcionarios WHERE ativo = true ORDER BY nome');
+                // Filtrar funcionários por tipo e quinzena
+                let tipoFilter = '';
+                if (quinzena === 'mensal') {
+                    tipoFilter = "tipo = 'vendedora'";
+                } else {
+                    tipoFilter = "tipo IN ('administrativo', 'producao')";
+                }
+                
+                const funcResult = await client.query(
+                    `SELECT * FROM funcionarios WHERE ativo = true AND ${tipoFilter} ORDER BY nome`
+                );
                 const funcionarios = funcResult.rows;
                 
                 console.log('Funcionários ativos encontrados:', funcionarios.length);
@@ -2772,6 +2787,12 @@ app.post('/api/gerar-folha/:mes', async (req, res) => {
                             valor_pequena_com_desconto: valorPequenaComDesconto
                         });
                         
+                    } else if (func.tipo === 'administrativo') {
+                        // Calcular salário base com porcentagem da quinzena
+                        const percentual = quinzena === 'dia_15' ? (func.dia_15_percent || 50) : (func.dia_30_percent || 50);
+                        salarioBase = (func.salario_base || 0) * (percentual / 100);
+                        console.log('Administrativo:', func.nome, 'Salário base:', func.salario_base, 'Percentual:', percentual, 'Salário quinzena:', salarioBase);
+                        
                     } else if (func.tipo === 'producao') {
                         // Buscar produção do mês para este funcionário
                         console.log('Buscando produção para', func.nome, 'no mês', mes);
@@ -2796,16 +2817,19 @@ app.post('/api/gerar-folha/:mes', async (req, res) => {
                         );
                         console.log('Todas as produções de', func.nome, ':', allProdResult.rows);
                         
-                        salarioBase = func.salario_base;
+                        // Calcular salário base com porcentagem da quinzena
+                        const percentual = quinzena === 'dia_15' ? (func.dia_15_percent || 50) : (func.dia_30_percent || 50);
+                        salarioBase = (func.salario_base || 0) * (percentual / 100);
                         comissoes = totalProduzido * func.comissao_maquina_producao;
+                        console.log('Produção:', func.nome, 'Salário base:', func.salario_base, 'Percentual:', percentual, 'Salário quinzena:', salarioBase);
                     }
                     
                     const total = salarioBase + comissoes + bonus;
                     
-                    // Verificar se já existe folha para este funcionário e mês
+                    // Verificar se já existe folha para este funcionário, mês e quinzena
                     const existeFolha = await client.query(
-                        'SELECT id FROM folha_pagamento WHERE id_funcionario = $1 AND mes_referencia = $2',
-                        [func.id, mes]
+                        'SELECT id FROM folha_pagamento WHERE id_funcionario = $1 AND mes_referencia = $2 AND quinzena = $3',
+                        [func.id, mes, quinzena]
                     );
                     
                     if (existeFolha.rows.length > 0) {
@@ -2813,17 +2837,17 @@ app.post('/api/gerar-folha/:mes', async (req, res) => {
                         await client.query(
                             `UPDATE folha_pagamento SET 
                              salario_base = $1, comissoes = $2, bonus = $3, total = $4, detalhe_comissoes = $5
-                             WHERE id_funcionario = $6 AND mes_referencia = $7`,
-                            [salarioBase, comissoes, bonus, total, detalheComissoes, func.id, mes]
+                             WHERE id_funcionario = $6 AND mes_referencia = $7 AND quinzena = $8`,
+                            [salarioBase, comissoes, bonus, total, detalheComissoes, func.id, mes, quinzena]
                         );
                         console.log('Folha atualizada para:', func.nome);
                     } else {
                         // Inserir nova folha
                         await client.query(
                             `INSERT INTO folha_pagamento 
-                             (id_funcionario, mes_referencia, salario_base, comissoes, bonus, total, detalhe_comissoes, data_geracao) 
-                             VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_DATE)`,
-                            [func.id, mes, salarioBase, comissoes, bonus, total, detalheComissoes]
+                             (id_funcionario, mes_referencia, quinzena, salario_base, comissoes, bonus, total, detalhe_comissoes, data_geracao) 
+                             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_DATE)`,
+                            [func.id, mes, quinzena, salarioBase, comissoes, bonus, total, detalheComissoes]
                         );
                         console.log('Folha inserida para:', func.nome);
                     }
@@ -2833,6 +2857,7 @@ app.post('/api/gerar-folha/:mes', async (req, res) => {
                         nome_funcionario: func.nome,
                         tipo: func.tipo,
                         mes_referencia: mes,
+                        quinzena: quinzena,
                         salario_base: salarioBase,
                         comissoes: comissoes,
                         bonus: bonus,

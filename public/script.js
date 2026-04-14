@@ -902,29 +902,37 @@ async function apagarFolhaExistente() {
 
 async function gerarFolhaPagamento() {
     const mes = document.getElementById('mes-folha').value;
+    const quinzena = document.getElementById('quinzena-folha').value;
     
     if (!mes) {
         alert('Selecione um mês!');
         return;
     }
     
-    // Verificar se já existe folha para este mês
+    if (!quinzena) {
+        alert('Selecione a quinzena!');
+        return;
+    }
+    
+    // Verificar se já existe folha para este mês e quinzena
     try {
-        console.log('Verificando se já existe folha para o mês:', mes);
-        const checkResponse = await fetch(`${API_BASE}/api/folha-pagamento/${mes}`);
+        console.log('Verificando se já existe folha para o mês:', mes, 'quinzena:', quinzena);
+        const checkResponse = await fetch(`${API_BASE}/api/folha-pagamento/${mes}?quinzena=${quinzena}`);
         const folhaExistente = await checkResponse.json();
         
         if (folhaExistente.length > 0) {
             const totalRegistros = folhaExistente.length;
             const totalVendedoras = folhaExistente.filter(f => f.tipo === 'vendedora').length;
             const totalProducao = folhaExistente.filter(f => f.tipo === 'producao').length;
+            const totalAdministrativo = folhaExistente.filter(f => f.tipo === 'administrativo').length;
             const totalGeral = folhaExistente.reduce((sum, f) => sum + f.total, 0);
             
             const confirmacao = confirm(
-                `ATENÇÃO: Já existe folha de pagamento para ${formatarMes(mes)}!\n\n` +
+                `ATENÇÃO: Já existe folha de pagamento para ${formatarMes(mes)} - ${quinzena === 'dia_15' ? 'Dia 15' : quinzena === 'dia_30' ? 'Dia 30' : 'Mensal'}!\n\n` +
                 `Registros existentes:\n` +
                 `- Vendedoras: ${totalVendedoras}\n` +
                 `- Produção: ${totalProducao}\n` +
+                `- Administrativo: ${totalAdministrativo}\n` +
                 `- Total geral: R$ ${totalGeral.toFixed(2)}\n\n` +
                 `Deseja APAGAR a folha existente e gerar uma nova?\n\n` +
                 `Isso irá recalcular todos os valores!`
@@ -936,7 +944,7 @@ async function gerarFolhaPagamento() {
             
             // Apagar folha existente
             console.log('Apagando folha existente...');
-            const deleteResponse = await fetch(`${API_BASE}/api/folha-pagamento/${mes}`, {
+            const deleteResponse = await fetch(`${API_BASE}/api/folha-pagamento/${mes}?quinzena=${quinzena}`, {
                 method: 'DELETE'
             });
             
@@ -952,11 +960,12 @@ async function gerarFolhaPagamento() {
     // Mostrar confirmação final
     const confirmacaoFinal = confirm(
         `CONFIRMAÇÃO DE GERAÇÃO DE FOLHA DE PAGAMENTO\n\n` +
-        `Mês: ${formatarMes(mes)}\n\n` +
+        `Mês: ${formatarMes(mes)}\n` +
+        `Quinzena: ${quinzena === 'dia_15' ? 'Dia 15' : quinzena === 'dia_30' ? 'Dia 30' : 'Mensal'}\n\n` +
         `Esta ação irá:\n` +
         `1. Calcular comissões baseadas em vendas/produção\n` +
         `2. Calcular bônus para vendedoras\n` +
-        `3. Gerar folha para todos os funcionários ativos\n` +
+        `3. Gerar folha para os funcionários selecionados\n` +
         `4. Salvar no banco de dados\n\n` +
         `Deseja continuar?`
     );
@@ -970,7 +979,7 @@ async function gerarFolhaPagamento() {
     const textoOriginal = botao ? botao.innerHTML : '<i class="bi bi-calculator"></i> Gerar Folha';
     
     try {
-        console.log('Gerando folha de pagamento para o mês:', mes);
+        console.log('Gerando folha de pagamento para o mês:', mes, 'quinzena:', quinzena);
         
         if (botao) {
             botao.disabled = true;
@@ -978,7 +987,9 @@ async function gerarFolhaPagamento() {
         }
         
         const response = await fetch(`${API_BASE}/api/gerar-folha/${mes}`, {
-            method: 'POST'
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ quinzena })
         });
         
         if (response.ok) {
