@@ -1844,12 +1844,14 @@ async function gerarHolerite() {
     console.log('=== INÍCIO GERAR HOLERITE ===');
     const idFuncionario = document.getElementById('holerite-funcionario').value;
     const mes = document.getElementById('holerite-mes').value;
+    const quinzena = document.getElementById('holerite-quinzena').value;
     
     console.log('ID Funcionário:', idFuncionario);
     console.log('Mês:', mes);
+    console.log('Quinzena:', quinzena);
     
-    if (!idFuncionario || !mes) {
-        alert('Selecione o funcionário e o mês!');
+    if (!idFuncionario || !mes || !quinzena) {
+        alert('Selecione o funcionário, o mês e a quinzena!');
         return;
     }
     
@@ -1858,9 +1860,9 @@ async function gerarHolerite() {
     const textoOriginal = botao ? botao.innerHTML : '<i class="bi bi-file-pdf"></i> Gerar Holerite';
     
     try {
-        // Verificar se existe folha para este mês
-        console.log('Verificando se existe folha para o mês:', mes);
-        const folhaResponse = await fetch(`${API_BASE}/api/folha-pagamento/${mes}`);
+        // Verificar se existe folha para este mês e quinzena
+        console.log('Verificando se existe folha para o mês:', mes, 'quinzena:', quinzena);
+        const folhaResponse = await fetch(`${API_BASE}/api/folha-pagamento/${mes}?quinzena=${quinzena}`);
         const folhas = await folhaResponse.json();
         
         if (folhas.length === 0) {
