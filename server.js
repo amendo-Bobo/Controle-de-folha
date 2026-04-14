@@ -2361,11 +2361,22 @@ app.post('/api/folha-pagamento', async (req, res) => {
                     return res.status(400).json({ error: 'Funcionário está inativo' });
                 }
                 
+                // Buscar vales pendentes do funcionário para o mês (independente da quinzena, pois vendedoras recebem tudo no dia 30)
+                const valesResult = await client.query(
+                    "SELECT COALESCE(SUM(valor), 0) as total FROM vales WHERE id_funcionario = $1 AND mes_referencia = $2 AND status = 'pendente'",
+                    [id_funcionario, mes_referencia]
+                );
+                
+                const totalVales = valesResult.rows[0].total || 0;
+                
+                // Calcular total atualizado (salário + comissões + bonus - vales)
+                const totalAtualizado = salario_base + comissoes + bonus - totalVales;
+                
                 // Inserir folha de pagamento
                 const result = await client.query(
-                    `INSERT INTO folha_pagamento (id_funcionario, mes_referencia, salario_base, comissoes, bonus, total, detalhe_comissoes) 
-                     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-                    [id_funcionario, mes_referencia, salario_base, comissoes, bonus, total, detalhe_comissoes || null]
+                    `INSERT INTO folha_pagamento (id_funcionario, mes_referencia, quinzena, salario_base, comissoes, bonus, vales, outros_descontos, total, detalhe_comissoes) 
+                     VALUES ($1, $2, 'mensal', $3, $4, $5, $6, 0, $7, $8) RETURNING *`,
+                    [id_funcionario, mes_referencia, salario_base, comissoes, bonus, totalVales, totalAtualizado, detalhe_comissoes || null]
                 );
                 
                 console.log('Folha de pagamento inserida no PostgreSQL:', result.rows[0]);
@@ -2399,26 +2410,42 @@ app.post('/api/folha-pagamento', async (req, res) => {
                         return res.status(400).json({ error: 'Funcionário está inativo' });
                     }
                     
-                    // Inserir folha de pagamento
-                    const sql = 'INSERT INTO folha_pagamento (id_funcionario, mes_referencia, salario_base, comissoes, bonus, total, detalhe_comissoes) VALUES (?, ?, ?, ?, ?, ?, ?)';
-                    const params = [id_funcionario, mes_referencia, salario_base, comissoes, bonus, total, detalhe_comissoes || null];
-                    
-                    db.run(sql, params, function(err) {
-                        if (err) {
-                            console.error('Erro ao inserir folha de pagamento:', err);
-                            return res.status(500).json({ error: err.message });
+                    // Buscar vales pendentes do funcionário para o mês (independente da quinzena, pois vendedoras recebem tudo no dia 30)
+                    db.all("SELECT COALESCE(SUM(valor), 0) as total FROM vales WHERE id_funcionario = ? AND mes_referencia = ? AND status = 'pendente'", [id_funcionario, mes_referencia], (valesErr, valesRows) => {
+                        if (valesErr) {
+                            console.error('Erro ao buscar vales:', valesErr);
+                            return res.status(500).json({ error: valesErr.message });
                         }
-                        console.log('Folha de pagamento inserida com ID:', this.lastID);
-                        res.json({ 
-                            id: this.lastID, 
-                            id_funcionario, 
-                            mes_referencia, 
-                            salario_base, 
-                            comissoes, 
-                            bonus, 
-                            total,
-                            detalhe_comissoes: detalhe_comissoes || null,
-                            nome_funcionario: row.nome
+                        
+                        const totalVales = valesRows && valesRows.length > 0 ? (valesRows[0].total || 0) : 0;
+                        
+                        // Calcular total atualizado (salário + comissões + bonus - vales)
+                        const totalAtualizado = salario_base + comissoes + bonus - totalVales;
+                        
+                        // Inserir folha de pagamento
+                        const sql = 'INSERT INTO folha_pagamento (id_funcionario, mes_referencia, quinzena, salario_base, comissoes, bonus, vales, outros_descontos, total, detalhe_comissoes) VALUES (?, ?, "mensal", ?, ?, ?, ?, 0, ?, ?)';
+                        const params = [id_funcionario, mes_referencia, salario_base, comissoes, bonus, totalVales, totalAtualizado, detalhe_comissoes || null];
+                        
+                        db.run(sql, params, function(err) {
+                            if (err) {
+                                console.error('Erro ao inserir folha de pagamento:', err);
+                                return res.status(500).json({ error: err.message });
+                            }
+                            console.log('Folha de pagamento inserida com ID:', this.lastID);
+                            res.json({ 
+                                id: this.lastID, 
+                                id_funcionario, 
+                                mes_referencia,
+                                quinzena: 'mensal',
+                                salario_base, 
+                                comissoes, 
+                                bonus,
+                                vales: totalVales,
+                                outros_descontos: 0,
+                                total: totalAtualizado,
+                                detalhe_comissoes: detalhe_comissoes || null,
+                                nome_funcionario: row.nome
+                            });
                         });
                     });
                 });
@@ -2441,26 +2468,42 @@ app.post('/api/folha-pagamento', async (req, res) => {
                     return res.status(400).json({ error: 'Funcionário está inativo' });
                 }
                 
-                // Inserir folha de pagamento
-                const sql = 'INSERT INTO folha_pagamento (id_funcionario, mes_referencia, salario_base, comissoes, bonus, total, detalhe_comissoes) VALUES (?, ?, ?, ?, ?, ?, ?)';
-                const params = [id_funcionario, mes_referencia, salario_base, comissoes, bonus, total, detalhe_comissoes || null];
-                
-                db.run(sql, params, function(err) {
-                    if (err) {
-                        console.error('Erro ao inserir folha de pagamento:', err);
-                        return res.status(500).json({ error: err.message });
+                // Buscar vales pendentes do funcionário para o mês (independente da quinzena, pois vendedoras recebem tudo no dia 30)
+                db.all("SELECT COALESCE(SUM(valor), 0) as total FROM vales WHERE id_funcionario = ? AND mes_referencia = ? AND status = 'pendente'", [id_funcionario, mes_referencia], (valesErr, valesRows) => {
+                    if (valesErr) {
+                        console.error('Erro ao buscar vales:', valesErr);
+                        return res.status(500).json({ error: valesErr.message });
                     }
-                    console.log('Folha de pagamento inserida com ID:', this.lastID);
-                    res.json({ 
-                        id: this.lastID, 
-                        id_funcionario, 
-                        mes_referencia, 
-                        salario_base, 
-                        comissoes, 
-                        bonus, 
-                        total,
-                        detalhe_comissoes: detalhe_comissoes || null,
-                        nome_funcionario: row.nome
+                    
+                    const totalVales = valesRows && valesRows.length > 0 ? (valesRows[0].total || 0) : 0;
+                    
+                    // Calcular total atualizado (salário + comissões + bonus - vales)
+                    const totalAtualizado = salario_base + comissoes + bonus - totalVales;
+                    
+                    // Inserir folha de pagamento
+                    const sql = 'INSERT INTO folha_pagamento (id_funcionario, mes_referencia, quinzena, salario_base, comissoes, bonus, vales, outros_descontos, total, detalhe_comissoes) VALUES (?, ?, "mensal", ?, ?, ?, ?, 0, ?, ?)';
+                    const params = [id_funcionario, mes_referencia, salario_base, comissoes, bonus, totalVales, totalAtualizado, detalhe_comissoes || null];
+                    
+                    db.run(sql, params, function(err) {
+                        if (err) {
+                            console.error('Erro ao inserir folha de pagamento:', err);
+                            return res.status(500).json({ error: err.message });
+                        }
+                        console.log('Folha de pagamento inserida com ID:', this.lastID);
+                        res.json({ 
+                            id: this.lastID, 
+                            id_funcionario, 
+                            mes_referencia,
+                            quinzena: 'mensal',
+                            salario_base, 
+                            comissoes, 
+                            bonus,
+                            vales: totalVales,
+                            outros_descontos: 0,
+                            total: totalAtualizado,
+                            detalhe_comissoes: detalhe_comissoes || null,
+                            nome_funcionario: row.nome
+                        });
                     });
                 });
             });
