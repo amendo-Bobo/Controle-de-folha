@@ -1026,18 +1026,26 @@ async function gerarFolhaPagamento() {
 
 async function carregarFolhaPagamento() {
     const mes = document.getElementById('mes-folha').value || new Date().toISOString().slice(0, 7);
+    const quinzena = document.getElementById('quinzena-folha').value || '';
     
     try {
-        const response = await fetch(`${API_BASE}/api/folha-pagamento/${mes}`);
+        let url = `${API_BASE}/api/folha-pagamento/${mes}`;
+        if (quinzena) {
+            url += `?quinzena=${quinzena}`;
+        }
+        
+        const response = await fetch(url);
         const folha = await response.json();
         
-        // Separar vendedoras e produção
+        // Separar vendedoras, produção e administrativo
         const vendedoras = folha.filter(f => f.tipo === 'vendedora');
         const producao = folha.filter(f => f.tipo === 'producao');
+        const administrativo = folha.filter(f => f.tipo === 'administrativo');
         
         // Calcular totais
         let totalVendedoras = 0;
         let totalProducao = 0;
+        let totalAdministrativo = 0;
         
         // Tabela de Vendedoras
         document.getElementById('tabela-folha-vendedoras').innerHTML = vendedoras.map(f => {
@@ -1101,6 +1109,23 @@ async function carregarFolhaPagamento() {
             </tr>
         `;
         
+        // Tabela de Administrativo
+        document.getElementById('tabela-folha-administrativo').innerHTML = administrativo.map(f => {
+            totalAdministrativo += f.total;
+            return `
+                <tr>
+                    <td>${f.nome_funcionario}</td>
+                    <td>R$ ${f.salario_base.toFixed(2)}</td>
+                    <td><strong>R$ ${f.total.toFixed(2)}</strong></td>
+                </tr>
+            `;
+        }).join('') + `
+            <tr class="table-info">
+                <td colspan="2"><strong>Total Administrativo</strong></td>
+                <td><strong>R$ ${totalAdministrativo.toFixed(2)}</strong></td>
+            </tr>
+        `;
+        
         // Mostrar mensagem se não houver dados
         if (vendedoras.length === 0) {
             document.getElementById('tabela-folha-vendedoras').innerHTML = '<tr><td colspan="5" class="text-center text-muted">Nenhuma vendedora na folha deste mês</td></tr>';
@@ -1108,6 +1133,10 @@ async function carregarFolhaPagamento() {
         
         if (producao.length === 0) {
             document.getElementById('tabela-folha-producao').innerHTML = '<tr><td colspan="4" class="text-center text-muted">Nenhum funcionário de produção na folha deste mês</td></tr>';
+        }
+        
+        if (administrativo.length === 0) {
+            document.getElementById('tabela-folha-administrativo').innerHTML = '<tr><td colspan="3" class="text-center text-muted">Nenhum funcionário administrativo na folha deste mês</td></tr>';
         }
         
     } catch (error) {

@@ -2884,7 +2884,16 @@ app.post('/api/gerar-folha/:mes', async (req, res) => {
                         }
                     }
                     
-                    const total = salarioBase + comissoes + bonus;
+                    // Buscar vales pendentes do funcionário para o mês e quinzena
+                    const valesResult = await client.query(
+                        "SELECT COALESCE(SUM(valor), 0) as total FROM vales WHERE id_funcionario = $1 AND mes_referencia = $2 AND quinzena = $3 AND status = 'pendente'",
+                        [func.id, mes, quinzena]
+                    );
+                    
+                    const totalVales = valesResult.rows[0]?.total || 0;
+                    console.log('Vales para', func.nome, ':', totalVales);
+                    
+                    const total = salarioBase + comissoes + bonus - totalVales;
                     
                     // Verificar se já existe folha para este funcionário, mês e quinzena
                     const existeFolha = await client.query(
@@ -2896,18 +2905,18 @@ app.post('/api/gerar-folha/:mes', async (req, res) => {
                         // Atualizar folha existente
                         await client.query(
                             `UPDATE folha_pagamento SET 
-                             salario_base = $1, comissoes = $2, bonus = $3, total = $4, detalhe_comissoes = $5
-                             WHERE id_funcionario = $6 AND mes_referencia = $7 AND quinzena = $8`,
-                            [salarioBase, comissoes, bonus, total, detalheComissoes, func.id, mes, quinzena]
+                             salario_base = $1, comissoes = $2, bonus = $3, vales = $4, total = $5, detalhe_comissoes = $6
+                             WHERE id_funcionario = $7 AND mes_referencia = $8 AND quinzena = $9`,
+                            [salarioBase, comissoes, bonus, totalVales, total, detalheComissoes, func.id, mes, quinzena]
                         );
                         console.log('Folha atualizada para:', func.nome);
                     } else {
                         // Inserir nova folha
                         await client.query(
                             `INSERT INTO folha_pagamento 
-                             (id_funcionario, mes_referencia, quinzena, salario_base, comissoes, bonus, total, detalhe_comissoes, data_geracao) 
-                             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_DATE)`,
-                            [func.id, mes, quinzena, salarioBase, comissoes, bonus, total, detalheComissoes]
+                             (id_funcionario, mes_referencia, quinzena, salario_base, comissoes, bonus, vales, total, detalhe_comissoes, data_geracao) 
+                             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_DATE)`,
+                            [func.id, mes, quinzena, salarioBase, comissoes, bonus, totalVales, total, detalheComissoes]
                         );
                         console.log('Folha inserida para:', func.nome);
                     }
@@ -2921,6 +2930,7 @@ app.post('/api/gerar-folha/:mes', async (req, res) => {
                         salario_base: salarioBase,
                         comissoes: comissoes,
                         bonus: bonus,
+                        vales: totalVales,
                         total: total,
                         detalhe_comissoes: detalheComissoes,
                         data_geracao: new Date().toISOString().split('T')[0]
