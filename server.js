@@ -1847,6 +1847,181 @@ app.get('/api/folha-pagamento/:mes', async (req, res) => {
     }
 });
 
+// POST folha-pagamento-quinzenal
+app.post('/api/folha-pagamento-quinzenal', async (req, res) => {
+    console.log('=== POST /api/folha-pagamento-quinzenal ===');
+    console.log('Dados recebidos:', req.body);
+    
+    try {
+        const { mes_referencia, quinzena, vales, outros_descontos } = req.body;
+        
+        // Validação básica
+        if (!mes_referencia || !quinzena) {
+            console.log('Erro: Campos obrigatórios faltando');
+            return res.status(400).json({ error: 'Mês e quinzena são obrigatórios' });
+        }
+        
+        if (quinzena !== 'dia_15' && quinzena !== 'dia_30') {
+            console.log('Erro: Quinzena inválida');
+            return res.status(400).json({ error: 'Quinzena deve ser "dia_15" ou "dia_30"' });
+        }
+        
+        if (useSupabase) {
+            // Usar PostgreSQL direto
+            console.log('Gerando folha de pagamento quinzenal no PostgreSQL...');
+            const { Client } = require('pg');
+            
+            try {
+                const poolerUrl = databaseUrl.replace(
+                    'postgresql://postgres:tiVW2cmpeVStByLm@db.yuwddqxdnyjvilbmjooc.supabase.co:5432/postgres',
+                    'postgresql://postgres.yuwddqxdnyjvilbmjooc:tiVW2cmpeVStByLm@aws-1-sa-east-1.pooler.supabase.com:6543/postgres'
+                );
+                
+                const client = new Client({
+                    connectionString: poolerUrl,
+                    ssl: { rejectUnauthorized: false },
+                    connectionTimeoutMillis: 10000,
+                    query_timeout: 10000
+                });
+                
+                await client.connect();
+                
+                // Buscar funcionários ativos do tipo administrativo e produção
+                const funcResult = await client.query(
+                    "SELECT id, nome, tipo, salario_base, comissao_maquina_producao, dia_15_percent, dia_30_percent FROM funcionarios WHERE tipo IN ('administrativo', 'producao') AND ativo = true"
+                );
+                
+                const folhasGeradas = [];
+                
+                for (const func of funcResult.rows) {
+                    let salarioBase = 0;
+                    let comissoes = 0;
+                    let bonus = 0;
+                    
+                    if (func.tipo === 'administrativo') {
+                        // Administrativo: só salário fixo, dividido por quinzena
+                        const percent = quinzena === 'dia_15' ? func.dia_15_percent : func.dia_30_percent;
+                        salarioBase = (func.salario_base || 0) * (percent / 100);
+                    } else if (func.tipo === 'producao') {
+                        // Produção: salário fixo dividido por quinzena + comissão (só no dia 30)
+                        const percent = quinzena === 'dia_15' ? func.dia_15_percent : func.dia_30_percent;
+                        salarioBase = (func.salario_base || 0) * (percent / 100);
+                        
+                        // Comissão só no dia 30 (última quinzena)
+                        if (quinzena === 'dia_30') {
+                            // Buscar produção do mês
+                            const prodResult = await client.query(
+                                "SELECT SUM(maquinas_produzidas) as total FROM producao WHERE id_funcionario = $1 AND TO_CHAR(data_producao, 'YYYY-MM') = $2",
+                                [func.id, mes_referencia]
+                            );
+                            
+                            const totalMaquinas = prodResult.rows[0].total || 0;
+                            comissoes = totalMaquinas * (func.comissao_maquina_producao || 0);
+                        }
+                    }
+                    
+                    // Calcular total (salário + comissões - descontos)
+                    const total = salarioBase + comissoes - (vales || 0) - (outros_descontos || 0);
+                    
+                    // Inserir folha de pagamento
+                    const result = await client.query(
+                        `INSERT INTO folha_pagamento (id_funcionario, mes_referencia, quinzena, salario_base, comissoes, bonus, vales, outros_descontos, total, detalhe_comissoes) 
+                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+                        [func.id, mes_referencia, quinzena, salarioBase, comissoes, bonus, vales || 0, outros_descontos || 0, total, null]
+                    );
+                    
+                    folhasGeradas.push({
+                        ...result.rows[0],
+                        nome_funcionario: func.nome,
+                        tipo: func.tipo
+                    });
+                }
+                
+                console.log('Folhas de pagamento quinzenal geradas:', folhasGeradas.length);
+                await client.end();
+                
+                res.json(folhasGeradas);
+                
+            } catch (pgError) {
+                console.log('PostgreSQL falhou, usando SQLite fallback:', pgError.message);
+                res.status(500).json({ error: pgError.message });
+            }
+        } else {
+            // Usar SQLite local
+            db.all("SELECT id, nome, tipo, salario_base, comissao_maquina_producao, dia_15_percent, dia_30_percent FROM funcionarios WHERE tipo IN ('administrativo', 'producao') AND ativo = 1", [], async (err, rows) => {
+                if (err) {
+                    console.error('Erro ao buscar funcionários:', err);
+                    return res.status(500).json({ error: err.message });
+                }
+                
+                const folhasGeradas = [];
+                
+                for (const func of rows) {
+                    let salarioBase = 0;
+                    let comissoes = 0;
+                    let bonus = 0;
+                    
+                    if (func.tipo === 'administrativo') {
+                        // Administrativo: só salário fixo, dividido por quinzena
+                        const percent = quinzena === 'dia_15' ? func.dia_15_percent : func.dia_30_percent;
+                        salarioBase = (func.salario_base || 0) * (percent / 100);
+                    } else if (func.tipo === 'producao') {
+                        // Produção: salário fixo dividido por quinzena + comissão (só no dia 30)
+                        const percent = quinzena === 'dia_15' ? func.dia_15_percent : func.dia_30_percent;
+                        salarioBase = (func.salario_base || 0) * (percent / 100);
+                        
+                        // Comissão só no dia 30 (última quinzena)
+                        if (quinzena === 'dia_30') {
+                            // Buscar produção do mês
+                            db.all("SELECT SUM(maquinas_produzidas) as total FROM producao WHERE id_funcionario = ? AND substr(data_producao, 1, 7) = ?", [func.id, mes_referencia], (prodErr, prodRows) => {
+                                if (!prodErr && prodRows && prodRows.length > 0) {
+                                    const totalMaquinas = prodRows[0].total || 0;
+                                    comissoes = totalMaquinas * (func.comissao_maquina_producao || 0);
+                                }
+                            });
+                        }
+                    }
+                    
+                    // Calcular total (salário + comissões - descontos)
+                    const total = salarioBase + comissoes - (vales || 0) - (outros_descontos || 0);
+                    
+                    // Inserir folha de pagamento
+                    const sql = 'INSERT INTO folha_pagamento (id_funcionario, mes_referencia, quinzena, salario_base, comissoes, bonus, vales, outros_descontos, total, detalhe_comissoes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+                    const params = [func.id, mes_referencia, quinzena, salarioBase, comissoes, bonus, vales || 0, outros_descontos || 0, total, null];
+                    
+                    db.run(sql, params, function(err) {
+                        if (err) {
+                            console.error('Erro ao inserir folha de pagamento:', err);
+                            return res.status(500).json({ error: err.message });
+                        }
+                        
+                        folhasGeradas.push({
+                            id: this.lastID,
+                            id_funcionario: func.id,
+                            mes_referencia,
+                            quinzena,
+                            salario_base: salarioBase,
+                            comissoes,
+                            bonus,
+                            vales: vales || 0,
+                            outros_descontos: outros_descontos || 0,
+                            total,
+                            detalhe_comissoes: null,
+                            nome_funcionario: func.nome,
+                            tipo: func.tipo
+                        });
+                    });
+                }
+                
+                res.json(folhasGeradas);
+            });
+        }
+    } catch (error) {
+        console.error('Erro geral:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // POST folha-pagamento
 app.post('/api/folha-pagamento', async (req, res) => {
     console.log('=== POST /api/folha-pagamento ===');
