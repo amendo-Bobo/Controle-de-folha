@@ -1466,9 +1466,11 @@ function resetModalProducao() {
 
 async function exportarPDF() {
     const mes = document.getElementById('mes-folha').value;
+    const quinzena = document.getElementById('quinzena-folha').value || '';
     
     console.log('=== exportarPDF() chamada ===');
     console.log('Mês selecionado:', mes);
+    console.log('Quinzena:', quinzena);
     
     if (!mes) {
         alert('Selecione um mês para exportar!');
@@ -1478,13 +1480,17 @@ async function exportarPDF() {
     try {
         console.log('Carregando dados da folha...');
         // Carregar dados da folha
-        const response = await fetch(`${API_BASE}/api/folha-pagamento/${mes}`);
+        let url = `${API_BASE}/api/folha-pagamento/${mes}`;
+        if (quinzena) {
+            url += `?quinzena=${quinzena}`;
+        }
+        const response = await fetch(url);
         const folha = await response.json();
         
         console.log('Folha carregada:', folha.length, 'registros');
         
         if (folha.length === 0) {
-            alert('Não há dados de folha para este mês!');
+            alert('Não há dados de folha para este mês e quinzena!');
             return;
         }
         
@@ -1527,7 +1533,8 @@ async function exportarPDF() {
         doc.text('FOLHA DE PAGAMENTO DETALHADA', pageWidth / 2, 15, { align: 'center' });
         
         doc.setFontSize(12);
-        doc.text(`Período: ${formatarMes(mes)}`, pageWidth / 2, 25, { align: 'center' });
+        const periodoTexto = quinzena ? `${formatarMes(mes)} - ${quinzena === 'dia_15' ? 'Dia 15' : 'Dia 30'}` : formatarMes(mes);
+        doc.text(`Período: ${periodoTexto}`, pageWidth / 2, 25, { align: 'center' });
         doc.text(`Data de geração: ${new Date().toLocaleDateString('pt-BR')}`, pageWidth / 2, 32, { align: 'center' });
         
         let yPosition = 45;
@@ -1542,13 +1549,15 @@ async function exportarPDF() {
         const totalMaquinasProduzidas = producao.reduce((sum, p) => sum + p.maquinas_produzidas, 0);
         const totalComissoes = folha.reduce((sum, f) => sum + f.comissoes, 0);
         const totalBonificacoes = folha.reduce((sum, f) => sum + f.bonus, 0);
+        const totalDescontos = folha.reduce((sum, f) => sum + (f.vales || 0), 0);
         
         doc.text(`Total Máquinas Vendidas: ${totalMaquinasVendidas}`, 20, yPosition);
         doc.text(`Total Máquinas Produzidas: ${totalMaquinasProduzidas}`, 20, yPosition + 7);
         doc.text(`Total em Comissões: R$ ${totalComissoes.toFixed(2)}`, 20, yPosition + 14);
         doc.text(`Total em Bonificações: R$ ${totalBonificacoes.toFixed(2)}`, 20, yPosition + 21);
+        doc.text(`Total em Descontos: R$ ${totalDescontos.toFixed(2)}`, 20, yPosition + 28);
         
-        yPosition += 35;
+        yPosition += 42;
         
         // Detalhes por Vendedora
         const vendedoras = folha.filter(f => f.tipo === 'vendedora');
@@ -1559,7 +1568,7 @@ async function exportarPDF() {
             
             // Cabeçalho da tabela com espaçamento otimizado
             doc.setFontSize(9);
-            const colWidths = [25, 15, 25, 20, 20, 20, 25]; // Largura das colunas em mm
+            const colWidths = [22, 12, 18, 18, 18, 18, 18, 18]; // Largura das colunas em mm
             let xPos = marginLeft;
             
             doc.text('Funcionária', xPos, yPosition);
@@ -1570,10 +1579,12 @@ async function exportarPDF() {
             xPos += colWidths[2];
             doc.text('Comissões', xPos, yPosition);
             xPos += colWidths[3];
-            doc.text('Bonif.Meta', xPos, yPosition);
+            doc.text('Bonif.', xPos, yPosition);
             xPos += colWidths[4];
-            doc.text('Bonif.Extra', xPos, yPosition);
+            doc.text('Descontos', xPos, yPosition);
             xPos += colWidths[5];
+            doc.text('Salário Base', xPos, yPosition);
+            xPos += colWidths[6];
             doc.text('Total', xPos, yPosition);
             
             yPosition += 7;
@@ -1608,14 +1619,16 @@ async function exportarPDF() {
                 xPos += colWidths[0];
                 doc.text(totalMaquinasVendedora.toString(), xPos, yPosition);
                 xPos += colWidths[1];
-                doc.text(detalheTexto.substring(0, 18), xPos, yPosition);
+                doc.text(detalheTexto.substring(0, 15), xPos, yPosition);
                 xPos += colWidths[2];
                 doc.text(`R$ ${vendedora.comissoes.toFixed(0)}`, xPos, yPosition);
                 xPos += colWidths[3];
                 doc.text(`R$ ${vendedora.bonus.toFixed(0)}`, xPos, yPosition);
                 xPos += colWidths[4];
-                doc.text(`R$ ${vendedora.bonus.toFixed(0)}`, xPos, yPosition);
+                doc.text(`R$ ${(vendedora.vales || 0).toFixed(0)}`, xPos, yPosition);
                 xPos += colWidths[5];
+                doc.text(`R$ ${(vendedora.salario_base || 0).toFixed(0)}`, xPos, yPosition);
+                xPos += colWidths[6];
                 doc.text(`R$ ${vendedora.total.toFixed(0)}`, xPos, yPosition);
                 
                 yPosition += 7;
@@ -1624,7 +1637,7 @@ async function exportarPDF() {
         
         yPosition += 15;
         
-        // Verificar se precisa adicionar nova página para produção
+        // Verificar se precisa de nova página para produção
         if (yPosition > 250) {
             doc.addPage();
             yPosition = 20;
@@ -1639,7 +1652,7 @@ async function exportarPDF() {
             
             // Cabeçalho da tabela com espaçamento otimizado
             doc.setFontSize(9);
-            const prodColWidths = [25, 15, 25, 20, 20, 25]; // Largura das colunas em mm
+            const prodColWidths = [22, 12, 18, 18, 18, 18, 18, 18]; // Largura das colunas em mm
             let xPos = marginLeft;
             
             doc.text('Funcionário', xPos, yPosition);
@@ -1652,6 +1665,10 @@ async function exportarPDF() {
             xPos += prodColWidths[3];
             doc.text('Total Comiss', xPos, yPosition);
             xPos += prodColWidths[4];
+            doc.text('Descontos', xPos, yPosition);
+            xPos += prodColWidths[5];
+            doc.text('Total Líquido', xPos, yPosition);
+            xPos += prodColWidths[6];
             doc.text('Total', xPos, yPosition);
             
             yPosition += 7;
@@ -1682,6 +1699,10 @@ async function exportarPDF() {
                     xPos += prodColWidths[3];
                     doc.text('Total Comiss', xPos, yPosition);
                     xPos += prodColWidths[4];
+                    doc.text('Descontos', xPos, yPosition);
+                    xPos += prodColWidths[5];
+                    doc.text('Total Líquido', xPos, yPosition);
+                    xPos += prodColWidths[6];
                     doc.text('Total', xPos, yPosition);
                     
                     yPosition += 7;
@@ -1698,10 +1719,66 @@ async function exportarPDF() {
                 xPos += prodColWidths[1];
                 doc.text(`R$ ${funcionario.salario_base.toFixed(0)}`, xPos, yPosition);
                 xPos += prodColWidths[2];
-                doc.text(`R$ ${(funcionario.comissoes / maquinasProduzidas).toFixed(0)}`, xPos, yPosition);
+                doc.text(`R$ ${(maquinasProduzidas > 0 ? funcionario.comissoes / maquinasProduzidas : 0).toFixed(0)}`, xPos, yPosition);
                 xPos += prodColWidths[3];
                 doc.text(`R$ ${funcionario.comissoes.toFixed(0)}`, xPos, yPosition);
                 xPos += prodColWidths[4];
+                doc.text(`R$ ${(funcionario.vales || 0).toFixed(0)}`, xPos, yPosition);
+                xPos += prodColWidths[5];
+                doc.text(`R$ ${(funcionario.salario_base + funcionario.comissoes - (funcionario.vales || 0)).toFixed(0)}`, xPos, yPosition);
+                xPos += prodColWidths[6];
+                doc.text(`R$ ${funcionario.total.toFixed(0)}`, xPos, yPosition);
+                
+                yPosition += 7;
+            });
+        }
+        
+        yPosition += 15;
+        
+        // Verificar se precisa de nova página para administrativo
+        if (yPosition > 250) {
+            doc.addPage();
+            yPosition = 20;
+        }
+        
+        // Detalhes por Administrativo
+        const administrativo = folha.filter(f => f.tipo === 'administrativo');
+        if (administrativo.length > 0) {
+            doc.setFontSize(14);
+            doc.text('DETALHES POR ADMINISTRATIVO', 20, yPosition);
+            yPosition += 10;
+            
+            // Cabeçalho da tabela
+            doc.setFontSize(9);
+            const adminColWidths = [30, 25, 25, 25, 25]; // Largura das colunas em mm
+            let xPos = marginLeft;
+            
+            doc.text('Funcionário', xPos, yPosition);
+            xPos += adminColWidths[0];
+            doc.text('Salário Base', xPos, yPosition);
+            xPos += adminColWidths[1];
+            doc.text('Descontos', xPos, yPosition);
+            xPos += adminColWidths[2];
+            doc.text('Total Líquido', xPos, yPosition);
+            xPos += adminColWidths[3];
+            doc.text('Total', xPos, yPosition);
+            
+            yPosition += 7;
+            doc.line(marginLeft, yPosition, marginLeft + usableWidth, yPosition);
+            yPosition += 5;
+            
+            administrativo.forEach(funcionario => {
+                doc.setFontSize(8);
+                xPos = marginLeft;
+                
+                doc.text(funcionario.nome_funcionario.substring(0, 15), xPos, yPosition);
+                xPos += adminColWidths[0];
+                doc.text(`R$ ${funcionario.salario_base.toFixed(0)}`, xPos, yPosition);
+                xPos += adminColWidths[1];
+                doc.text(`R$ ${(funcionario.vales || 0).toFixed(0)}`, xPos, yPosition);
+                xPos += adminColWidths[2];
+                doc.text(`R$ ${(funcionario.salario_base - (funcionario.vales || 0)).toFixed(0)}`, xPos, yPosition);
+                xPos += adminColWidths[3];
                 doc.text(`R$ ${funcionario.total.toFixed(0)}`, xPos, yPosition);
                 
                 yPosition += 7;
@@ -1724,7 +1801,8 @@ async function exportarPDF() {
         doc.text(`TOTAL GERAL: R$ ${totalGeral.toFixed(2)}`, pageWidth / 2, yPosition, { align: 'center' });
         
         // Salvar PDF
-        doc.save(`folha-pagamento-detalhada-${mes}.pdf`);
+        const nomeArquivo = quinzena ? `folha-pagamento-${mes}-${quinzena}.pdf` : `folha-pagamento-${mes}.pdf`;
+        doc.save(nomeArquivo);
         
     } catch (error) {
         console.error('Erro ao exportar PDF:', error);
