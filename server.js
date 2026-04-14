@@ -179,6 +179,31 @@ async function createSupabaseTables() {
             `);
             console.log('Tabela folha_pagamento recriada com estrutura correta');
             
+            // Criar tabela vales
+            try {
+                await client.query(`DROP TABLE IF EXISTS vales CASCADE`);
+                console.log('Tabela vales antiga removida');
+            } catch (dropError) {
+                console.log('Tabela vales não existe ou erro ao remover:', dropError.message);
+            }
+            
+            await client.query(`
+                CREATE TABLE vales (
+                    id BIGSERIAL PRIMARY KEY,
+                    id_funcionario BIGINT NOT NULL REFERENCES funcionarios(id),
+                    motivo TEXT NOT NULL,
+                    valor REAL NOT NULL,
+                    observacao TEXT,
+                    quinzena TEXT NOT NULL,
+                    mes_referencia TEXT NOT NULL,
+                    data_lancamento DATE DEFAULT CURRENT_DATE NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'pendente',
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW()
+                )
+            `);
+            console.log('Tabela vales criada com sucesso');
+            
             // Adicionar colunas de descontos e quinzena se não existirem
             try {
                 await client.query(`ALTER TABLE folha_pagamento ADD COLUMN quinzena TEXT DEFAULT 'mensal'`);
@@ -324,6 +349,20 @@ const db = new sqlite3.Database('./erp.db', (err) => {
             FOREIGN KEY (id_funcionario) REFERENCES funcionarios(id)
         )`);
 
+        // Tabela vales
+        db.run(`CREATE TABLE IF NOT EXISTS vales (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id_funcionario INTEGER NOT NULL,
+            motivo TEXT NOT NULL,
+            valor REAL NOT NULL,
+            observacao TEXT,
+            quinzena TEXT NOT NULL,
+            mes_referencia TEXT NOT NULL,
+            data_lancamento DATE NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pendente',
+            FOREIGN KEY (id_funcionario) REFERENCES funcionarios(id)
+        )`);
+
         // Adicionar coluna detalhe_comissoes se não existir
         db.run(`ALTER TABLE folha_pagamento ADD COLUMN detalhe_comissoes TEXT`, (err) => {
             if (err && !err.message.includes('duplicate column name')) {
@@ -352,6 +391,241 @@ const db = new sqlite3.Database('./erp.db', (err) => {
 
         console.log('Todas as tabelas criadas com sucesso!');
     });
+});
+
+// GET vales
+app.get('/api/vales', async (req, res) => {
+    console.log('=== GET /api/vales chamado ===');
+    console.log('useSupabase:', useSupabase);
+    
+    if (useSupabase) {
+        // Usar PostgreSQL direto
+        console.log('Buscando vales no PostgreSQL...');
+        const { Client } = require('pg');
+        
+        try {
+            const poolerUrl = databaseUrl.replace(
+                'postgresql://postgres:tiVW2cmpeVStByLm@db.yuwddqxdnyjvilbmjooc.supabase.co:5432/postgres',
+                'postgresql://postgres.yuwddqxdnyjvilbmjooc:tiVW2cmpeVStByLm@aws-1-sa-east-1.pooler.supabase.com:6543/postgres'
+            );
+            
+            const client = new Client({
+                connectionString: poolerUrl,
+                ssl: { rejectUnauthorized: false },
+                connectionTimeoutMillis: 10000,
+                query_timeout: 10000
+            });
+            
+            await client.connect();
+            
+            const result = await client.query(`
+                SELECT v.*, f.nome as nome_funcionario 
+                FROM vales v 
+                JOIN funcionarios f ON v.id_funcionario = f.id 
+                ORDER BY v.data_lancamento DESC
+            `);
+            
+            console.log('Vales encontrados no PostgreSQL:', result.rows.length);
+            await client.end();
+            res.json(result.rows);
+            
+        } catch (pgError) {
+            console.log('PostgreSQL falhou, usando SQLite fallback:', pgError.message);
+            
+            // Fallback para SQLite
+            db.all(`
+                SELECT v.*, f.nome as nome_funcionario 
+                FROM vales v 
+                JOIN funcionarios f ON v.id_funcionario = f.id 
+                ORDER BY v.data_lancamento DESC
+            `, [], (err, rows) => {
+                if (err) {
+                    console.error('Erro no SQLite local:', err);
+                    res.status(500).json({ error: err.message });
+                    return;
+                }
+                console.log('Vales encontrados no SQLite local:', rows?.length || 0);
+                res.json(rows || []);
+            });
+        }
+    } else {
+        // Usar SQLite local
+        db.all(`
+            SELECT v.*, f.nome as nome_funcionario 
+            FROM vales v 
+            JOIN funcionarios f ON v.id_funcionario = f.id 
+            ORDER BY v.data_lancamento DESC
+        `, [], (err, rows) => {
+            if (err) {
+                console.error('Erro no SQLite local:', err);
+                res.status(500).json({ error: err.message });
+                return;
+            }
+            console.log('Vales encontrados no SQLite local:', rows?.length || 0);
+            res.json(rows || []);
+        });
+    }
+});
+
+// POST vales
+app.post('/api/vales', async (req, res) => {
+    console.log('=== POST /api/vales ===');
+    console.log('Dados recebidos:', req.body);
+    
+    try {
+        const { id_funcionario, motivo, valor, observacao, quinzena, mes_referencia } = req.body;
+        
+        // Validação básica
+        if (!id_funcionario || !motivo || !valor || !quinzena || !mes_referencia) {
+            console.log('Erro: Campos obrigatórios faltando');
+            return res.status(400).json({ error: 'Todos os campos são obrigatórios' });
+        }
+        
+        if (useSupabase) {
+            // Usar PostgreSQL direto
+            console.log('Inserindo vale no PostgreSQL...');
+            const { Client } = require('pg');
+            
+            try {
+                const poolerUrl = databaseUrl.replace(
+                    'postgresql://postgres:tiVW2cmpeVStByLm@db.yuwddqxdnyjvilbmjooc.supabase.co:5432/postgres',
+                    'postgresql://postgres.yuwddqxdnyjvilbmjooc:tiVW2cmpeVStByLm@aws-1-sa-east-1.pooler.supabase.com:6543/postgres'
+                );
+                
+                const client = new Client({
+                    connectionString: poolerUrl,
+                    ssl: { rejectUnauthorized: false },
+                    connectionTimeoutMillis: 10000,
+                    query_timeout: 10000
+                });
+                
+                await client.connect();
+                
+                // Verificar se funcionário existe e está ativo
+                const funcResult = await client.query('SELECT id, nome, ativo FROM funcionarios WHERE id = $1', [id_funcionario]);
+                
+                if (funcResult.rows.length === 0) {
+                    console.error('Funcionário não encontrado:', id_funcionario);
+                    await client.end();
+                    return res.status(400).json({ error: 'Funcionário não encontrado' });
+                }
+                
+                if (!funcResult.rows[0].ativo) {
+                    console.error('Funcionário está inativo:', id_funcionario);
+                    await client.end();
+                    return res.status(400).json({ error: 'Funcionário está inativo' });
+                }
+                
+                // Inserir vale
+                const result = await client.query(
+                    `INSERT INTO vales (id_funcionario, motivo, valor, observacao, quinzena, mes_referencia, data_lancamento, status) 
+                     VALUES ($1, $2, $3, $4, $5, $6, CURRENT_DATE, 'pendente') RETURNING *`,
+                    [id_funcionario, motivo, valor, observacao || null, quinzena, mes_referencia]
+                );
+                
+                console.log('Vale inserido no PostgreSQL:', result.rows[0]);
+                await client.end();
+                
+                // Adicionar nome do funcionário na resposta
+                const valeResponse = {
+                    ...result.rows[0],
+                    nome_funcionario: funcResult.rows[0].nome
+                };
+                
+                res.json(valeResponse);
+                
+            } catch (pgError) {
+                console.log('PostgreSQL falhou, usando SQLite fallback:', pgError.message);
+                
+                // Fallback para SQLite
+                db.get('SELECT id, nome, ativo FROM funcionarios WHERE id = ?', [id_funcionario], (err, row) => {
+                    if (err) {
+                        console.error('Erro ao verificar funcionário:', err);
+                        return res.status(500).json({ error: err.message });
+                    }
+                    
+                    if (!row) {
+                        console.error('Funcionário não encontrado:', id_funcionario);
+                        return res.status(400).json({ error: 'Funcionário não encontrado' });
+                    }
+                    
+                    if (!row.ativo) {
+                        console.error('Funcionário está inativo:', id_funcionario);
+                        return res.status(400).json({ error: 'Funcionário está inativo' });
+                    }
+                    
+                    // Inserir vale
+                    const sql = 'INSERT INTO vales (id_funcionario, motivo, valor, observacao, quinzena, mes_referencia, data_lancamento, status) VALUES (?, ?, ?, ?, ?, ?, CURRENT_DATE, "pendente")';
+                    const params = [id_funcionario, motivo, valor, observacao || null, quinzena, mes_referencia];
+                    
+                    db.run(sql, params, function(err) {
+                        if (err) {
+                            console.error('Erro ao inserir vale:', err);
+                            return res.status(500).json({ error: err.message });
+                        }
+                        console.log('Vale inserido com ID:', this.lastID);
+                        res.json({ 
+                            id: this.lastID, 
+                            id_funcionario, 
+                            motivo, 
+                            valor, 
+                            observacao: observacao || null,
+                            quinzena,
+                            mes_referencia,
+                            data_lancamento: new Date().toISOString().split('T')[0],
+                            status: 'pendente',
+                            nome_funcionario: row.nome
+                        });
+                    });
+                });
+            }
+        } else {
+            // Usar SQLite local
+            db.get('SELECT id, nome, ativo FROM funcionarios WHERE id = ?', [id_funcionario], (err, row) => {
+                if (err) {
+                    console.error('Erro ao verificar funcionário:', err);
+                    return res.status(500).json({ error: err.message });
+                }
+                
+                if (!row) {
+                    console.error('Funcionário não encontrado:', id_funcionario);
+                    return res.status(400).json({ error: 'Funcionário não encontrado' });
+                }
+                
+                if (!row.ativo) {
+                    console.error('Funcionário está inativo:', id_funcionario);
+                    return res.status(400).json({ error: 'Funcionário está inativo' });
+                }
+                
+                // Inserir vale
+                const sql = 'INSERT INTO vales (id_funcionario, motivo, valor, observacao, quinzena, mes_referencia, data_lancamento, status) VALUES (?, ?, ?, ?, ?, ?, CURRENT_DATE, "pendente")';
+                const params = [id_funcionario, motivo, valor, observacao || null, quinzena, mes_referencia];
+                
+                db.run(sql, params, function(err) {
+                    if (err) {
+                        console.error('Erro ao inserir vale:', err);
+                        return res.status(500).json({ error: err.message });
+                    }
+                    console.log('Vale inserido com ID:', this.lastID);
+                    res.json({ 
+                        id: this.lastID, 
+                        id_funcionario, 
+                        motivo, 
+                        valor, 
+                        observacao: observacao || null,
+                        quinzena,
+                        mes_referencia,
+                        data_lancamento: new Date().toISOString().split('T')[0],
+                        status: 'pendente',
+                        nome_funcionario: row.nome
+                    });
+                });
+            });
+        }
+    } catch (error) {
+        console.error('Erro geral:', error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
 // GET funcionarios
@@ -1920,14 +2194,22 @@ app.post('/api/folha-pagamento-quinzenal', async (req, res) => {
                         }
                     }
                     
+                    // Buscar vales pendentes do funcionário para o mês e quinzena
+                    const valesResult = await client.query(
+                        "SELECT COALESCE(SUM(valor), 0) as total FROM vales WHERE id_funcionario = $1 AND mes_referencia = $2 AND quinzena = $3 AND status = 'pendente'",
+                        [func.id, mes_referencia, quinzena]
+                    );
+                    
+                    const totalVales = valesResult.rows[0].total || 0;
+                    
                     // Calcular total (salário + comissões - descontos)
-                    const total = salarioBase + comissoes - (vales || 0) - (outros_descontos || 0);
+                    const total = salarioBase + comissoes - totalVales - (outros_descontos || 0);
                     
                     // Inserir folha de pagamento
                     const result = await client.query(
                         `INSERT INTO folha_pagamento (id_funcionario, mes_referencia, quinzena, salario_base, comissoes, bonus, vales, outros_descontos, total, detalhe_comissoes) 
                          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-                        [func.id, mes_referencia, quinzena, salarioBase, comissoes, bonus, vales || 0, outros_descontos || 0, total, null]
+                        [func.id, mes_referencia, quinzena, salarioBase, comissoes, bonus, totalVales, outros_descontos || 0, total, null]
                     );
                     
                     folhasGeradas.push({
@@ -1982,34 +2264,41 @@ app.post('/api/folha-pagamento-quinzenal', async (req, res) => {
                         }
                     }
                     
-                    // Calcular total (salário + comissões - descontos)
-                    const total = salarioBase + comissoes - (vales || 0) - (outros_descontos || 0);
-                    
-                    // Inserir folha de pagamento
-                    const sql = 'INSERT INTO folha_pagamento (id_funcionario, mes_referencia, quinzena, salario_base, comissoes, bonus, vales, outros_descontos, total, detalhe_comissoes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
-                    const params = [func.id, mes_referencia, quinzena, salarioBase, comissoes, bonus, vales || 0, outros_descontos || 0, total, null];
-                    
-                    db.run(sql, params, function(err) {
-                        if (err) {
-                            console.error('Erro ao inserir folha de pagamento:', err);
-                            return res.status(500).json({ error: err.message });
+                    // Buscar vales pendentes do funcionário para o mês e quinzena
+                    db.all("SELECT COALESCE(SUM(valor), 0) as total FROM vales WHERE id_funcionario = ? AND mes_referencia = ? AND quinzena = ? AND status = 'pendente'", [func.id, mes_referencia, quinzena], (valesErr, valesRows) => {
+                        if (!valesErr && valesRows && valesRows.length > 0) {
+                            const totalVales = valesRows[0].total || 0;
+                            
+                            // Calcular total (salário + comissões - descontos)
+                            const total = salarioBase + comissoes - totalVales - (outros_descontos || 0);
+                            
+                            // Inserir folha de pagamento
+                            const sql = 'INSERT INTO folha_pagamento (id_funcionario, mes_referencia, quinzena, salario_base, comissoes, bonus, vales, outros_descontos, total, detalhe_comissoes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+                            const params = [func.id, mes_referencia, quinzena, salarioBase, comissoes, bonus, totalVales, outros_descontos || 0, total, null];
+                            
+                            db.run(sql, params, function(err) {
+                                if (err) {
+                                    console.error('Erro ao inserir folha de pagamento:', err);
+                                    return res.status(500).json({ error: err.message });
+                                }
+                                
+                                folhasGeradas.push({
+                                    id: this.lastID,
+                                    id_funcionario: func.id,
+                                    mes_referencia,
+                                    quinzena,
+                                    salario_base: salarioBase,
+                                    comissoes,
+                                    bonus,
+                                    vales: totalVales,
+                                    outros_descontos: outros_descontos || 0,
+                                    total,
+                                    detalhe_comissoes: null,
+                                    nome_funcionario: func.nome,
+                                    tipo: func.tipo
+                                });
+                            });
                         }
-                        
-                        folhasGeradas.push({
-                            id: this.lastID,
-                            id_funcionario: func.id,
-                            mes_referencia,
-                            quinzena,
-                            salario_base: salarioBase,
-                            comissoes,
-                            bonus,
-                            vales: vales || 0,
-                            outros_descontos: outros_descontos || 0,
-                            total,
-                            detalhe_comissoes: null,
-                            nome_funcionario: func.nome,
-                            tipo: func.tipo
-                        });
                     });
                 }
                 

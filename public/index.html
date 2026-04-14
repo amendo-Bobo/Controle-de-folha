@@ -124,6 +124,9 @@
                     <a class="nav-link" href="#" data-page="administrativo">
                         <i class="bi bi-person-workspace"></i> Administrativo
                     </a>
+                    <a class="nav-link" href="#" data-page="vales">
+                        <i class="bi bi-cash-coin"></i> Vales
+                    </a>
                     <a class="nav-link" href="#" data-page="folha-pagamento">
                         <i class="bi bi-cash-stack"></i> Folha Pagamento
                     </a>
@@ -338,6 +341,39 @@
                                         </tr>
                                     </thead>
                                     <tbody id="tabela-administrativo"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Vales -->
+                <div id="vales" class="page-section">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h2>Vales e Descontos</h2>
+                        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#modalVale">
+                            <i class="bi bi-plus"></i> Lançar Vale
+                        </button>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>ID</th>
+                                            <th>Funcionário</th>
+                                            <th>Motivo</th>
+                                            <th>Valor (R$)</th>
+                                            <th>Quinzena</th>
+                                            <th>Mês Referência</th>
+                                            <th>Data Lançamento</th>
+                                            <th>Status</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tabela-vales"></tbody>
                                 </table>
                             </div>
                         </div>
@@ -606,6 +642,56 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                     <button type="button" class="btn btn-primary" onclick="salvarVenda()">Salvar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Vale -->
+    <div class="modal fade" id="modalVale" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Lançar Vale</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="form-vale">
+                        <div class="mb-3">
+                            <label class="form-label">Funcionário</label>
+                            <select class="form-select" id="vale-funcionario" required>
+                                <option value="">Selecione...</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Motivo</label>
+                            <input type="text" class="form-control" id="vale-motivo" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Valor (R$)</label>
+                            <input type="number" class="form-control" id="vale-valor" step="0.01" min="0" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Observação</label>
+                            <textarea class="form-control" id="vale-observacao" rows="2"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Quinzena</label>
+                            <select class="form-select" id="vale-quinzena" required>
+                                <option value="">Selecione...</option>
+                                <option value="dia_15">Dia 15 (Primeira Quinzena)</option>
+                                <option value="dia_30">Dia 30 (Segunda Quinzena)</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Mês Referência</label>
+                            <input type="month" class="form-control" id="vale-mes" required>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" onclick="salvarVale()">Salvar</button>
                 </div>
             </div>
         </div>

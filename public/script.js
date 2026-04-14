@@ -165,6 +165,10 @@ function setupNavigation() {
                 case 'administrativo':
                     carregarAdministrativo();
                     break;
+                case 'vales':
+                    carregarVales();
+                    carregarFuncionariosVales();
+                    break;
                 case 'folha-pagamento':
                     carregarFolhaPagamento();
                     break;
@@ -506,6 +510,105 @@ async function carregarAdministrativo() {
         
     } catch (error) {
         console.error('Erro ao carregar funcionários administrativos:', error);
+    }
+}
+
+async function carregarVales() {
+    try {
+        const response = await fetch(`${API_BASE}/api/vales`);
+        const vales = await response.json();
+        
+        const tabela = document.getElementById('tabela-vales');
+        tabela.innerHTML = vales.map(v => `
+            <tr>
+                <td>${v.id}</td>
+                <td>${v.nome_funcionario}</td>
+                <td>${v.motivo}</td>
+                <td>R$ ${v.valor.toFixed(2)}</td>
+                <td>${v.quinzena === 'dia_15' ? 'Dia 15' : 'Dia 30'}</td>
+                <td>${v.mes_referencia}</td>
+                <td>${new Date(v.data_lancamento).toLocaleDateString('pt-BR')}</td>
+                <td>
+                    <span class="badge ${v.status === 'pendente' ? 'bg-warning' : 'bg-success'}">
+                        ${v.status === 'pendente' ? 'Pendente' : 'Aplicado'}
+                    </span>
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-danger" onclick="deletarVale(${v.id})">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+        
+    } catch (error) {
+        console.error('Erro ao carregar vales:', error);
+    }
+}
+
+async function salvarVale() {
+    const idFuncionario = document.getElementById('vale-funcionario').value;
+    const motivo = document.getElementById('vale-motivo').value;
+    const valor = parseFloat(document.getElementById('vale-valor').value);
+    const observacao = document.getElementById('vale-observacao').value;
+    const quinzena = document.getElementById('vale-quinzena').value;
+    const mesReferencia = document.getElementById('vale-mes').value;
+    
+    if (!idFuncionario || !motivo || !valor || !quinzena || !mesReferencia) {
+        alert('Preencha todos os campos obrigatórios!');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE}/api/vales`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                id_funcionario: parseInt(idFuncionario),
+                motivo,
+                valor,
+                observacao,
+                quinzena,
+                mes_referencia: mesReferencia
+            })
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            console.log('Vale salvo:', data);
+            
+            // Fechar modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('modalVale'));
+            if (modal) {
+                modal.hide();
+            }
+            
+            // Limpar formulário
+            document.getElementById('form-vale').reset();
+            carregarVales();
+            alert('Vale salvo com sucesso!');
+        } else {
+            const errorData = await response.json();
+            alert('Erro ao salvar vale: ' + errorData.error);
+        }
+    } catch (error) {
+        console.error('Erro ao salvar vale:', error);
+        alert('Erro ao salvar vale!');
+    }
+}
+
+async function carregarFuncionariosVales() {
+    try {
+        const response = await fetch(`${API_BASE}/api/funcionarios`);
+        const funcionarios = await response.json();
+        const funcionariosAtivos = funcionarios.filter(f => f.ativo);
+        
+        const select = document.getElementById('vale-funcionario');
+        select.innerHTML = '<option value="">Selecione...</option>' + 
+            funcionariosAtivos.map(f => `<option value="${f.id}">${f.nome} (${f.tipo})</option>`).join('');
+        
+    } catch (error) {
+        console.error('Erro ao carregar funcionários para vales:', error);
     }
 }
 
