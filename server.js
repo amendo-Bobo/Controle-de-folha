@@ -2115,9 +2115,11 @@ app.get('/api/folha-pagamento', async (req, res) => {
 app.get('/api/folha-pagamento/:mes', async (req, res) => {
     console.log('=== GET /api/folha-pagamento/:mes chamado ===');
     console.log('Mês:', req.params.mes);
+    console.log('Quinzena:', req.query.quinzena);
     console.log('useSupabase:', useSupabase);
     
     const { mes } = req.params;
+    const { quinzena } = req.query;
     
     if (useSupabase) {
         // Usar PostgreSQL direto
@@ -2140,13 +2142,22 @@ app.get('/api/folha-pagamento/:mes', async (req, res) => {
             
             await client.connect();
             
-            const result = await client.query(`
+            let query = `
                 SELECT fp.*, f.nome as nome_funcionario, f.tipo 
                 FROM folha_pagamento fp 
                 LEFT JOIN funcionarios f ON fp.id_funcionario = f.id
                 WHERE fp.mes_referencia = $1
-                ORDER BY f.nome ASC
-            `, [mes]);
+            `;
+            const params = [mes];
+            
+            if (quinzena) {
+                query += ' AND fp.quinzena = $2';
+                params.push(quinzena);
+            }
+            
+            query += ' ORDER BY f.nome ASC';
+            
+            const result = await client.query(query, params);
             
             console.log('Folha de pagamento encontrada no PostgreSQL:', result.rows.length);
             console.log('Dados:', result.rows);
@@ -2159,15 +2170,22 @@ app.get('/api/folha-pagamento/:mes', async (req, res) => {
             console.log('Erro no PostgreSQL, usando SQLite fallback:', error.message);
             
             // Fallback para SQLite
-            const query = `
+            let query = `
                 SELECT fp.*, f.nome as nome_funcionario 
                 FROM folha_pagamento fp 
                 LEFT JOIN funcionarios f ON fp.id_funcionario = f.id
                 WHERE fp.mes_referencia = ?
-                ORDER BY f.nome ASC
             `;
+            const params = [mes];
             
-            db.all(query, [mes], (err, rows) => {
+            if (quinzena) {
+                query += ' AND fp.quinzena = ?';
+                params.push(quinzena);
+            }
+            
+            query += ' ORDER BY f.nome ASC';
+            
+            db.all(query, params, (err, rows) => {
                 if (err) {
                     console.error('Erro no SQLite fallback:', err);
                     return res.status(500).json({ error: err.message });
@@ -2180,15 +2198,22 @@ app.get('/api/folha-pagamento/:mes', async (req, res) => {
     } else {
         // Usar SQLite local
         console.log('Usando SQLite local para folha de pagamento...');
-        const query = `
+        let query = `
             SELECT fp.*, f.nome as nome_funcionario 
             FROM folha_pagamento fp 
             LEFT JOIN funcionarios f ON fp.id_funcionario = f.id
             WHERE fp.mes_referencia = ?
-            ORDER BY f.nome ASC
         `;
+        const params = [mes];
         
-        db.all(query, [mes], (err, rows) => {
+        if (quinzena) {
+            query += ' AND fp.quinzena = ?';
+            params.push(quinzena);
+        }
+        
+        query += ' ORDER BY f.nome ASC';
+        
+        db.all(query, params, (err, rows) => {
             if (err) {
                 console.error('Erro no SQLite local:', err);
                 res.status(500).json({ error: err.message });
@@ -2598,9 +2623,11 @@ app.post('/api/folha-pagamento', async (req, res) => {
 app.delete('/api/folha-pagamento/:mes', async (req, res) => {
     console.log('=== DELETE /api/folha-pagamento/:mes ===');
     console.log('Mês:', req.params.mes);
+    console.log('Quinzena:', req.query.quinzena);
     
     try {
         const { mes } = req.params;
+        const { quinzena } = req.query;
         
         if (useSupabase) {
             // Usar PostgreSQL direto
@@ -2622,7 +2649,17 @@ app.delete('/api/folha-pagamento/:mes', async (req, res) => {
                 
                 await client.connect();
                 
-                const result = await client.query('DELETE FROM folha_pagamento WHERE mes_referencia = $1 RETURNING *', [mes]);
+                let query = 'DELETE FROM folha_pagamento WHERE mes_referencia = $1';
+                const params = [mes];
+                
+                if (quinzena) {
+                    query += ' AND quinzena = $2';
+                    params.push(quinzena);
+                }
+                
+                query += ' RETURNING *';
+                
+                const result = await client.query(query, params);
                 
                 console.log('Folha de pagamento excluída no PostgreSQL:', result.rows.length, 'registros');
                 await client.end();
@@ -2633,7 +2670,15 @@ app.delete('/api/folha-pagamento/:mes', async (req, res) => {
                 console.log('PostgreSQL falhou, usando SQLite fallback:', pgError.message);
                 
                 // Fallback para SQLite
-                db.run('DELETE FROM folha_pagamento WHERE mes_referencia = ?', [mes], function(err) {
+                let query = 'DELETE FROM folha_pagamento WHERE mes_referencia = ?';
+                const params = [mes];
+                
+                if (quinzena) {
+                    query += ' AND quinzena = ?';
+                    params.push(quinzena);
+                }
+                
+                db.run(query, params, function(err) {
                     if (err) {
                         console.error('Erro ao excluir folha de pagamento:', err);
                         return res.status(500).json({ error: err.message });
@@ -2644,7 +2689,15 @@ app.delete('/api/folha-pagamento/:mes', async (req, res) => {
             }
         } else {
             // Usar SQLite local
-            db.run('DELETE FROM folha_pagamento WHERE mes_referencia = ?', [mes], function(err) {
+            let query = 'DELETE FROM folha_pagamento WHERE mes_referencia = ?';
+            const params = [mes];
+            
+            if (quinzena) {
+                query += ' AND quinzena = ?';
+                params.push(quinzena);
+            }
+            
+            db.run(query, params, function(err) {
                 if (err) {
                     console.error('Erro ao excluir folha de pagamento:', err);
                     return res.status(500).json({ error: err.message });
