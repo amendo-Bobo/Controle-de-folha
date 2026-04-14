@@ -149,6 +149,28 @@ async function createSupabaseTables() {
                 console.log('Constraint já existe ou erro ao adicionar:', error.message);
             }
             
+            // Criar tabela producao
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS producao (
+                    id BIGSERIAL PRIMARY KEY,
+                    id_funcionario BIGINT NOT NULL REFERENCES funcionarios(id),
+                    maquinas_produzidas INTEGER NOT NULL,
+                    data_producao DATE NOT NULL,
+                    quinzena TEXT DEFAULT 'dia_30',
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW()
+                )
+            `);
+            console.log('Tabela producao criada com sucesso');
+            
+            // Adicionar coluna quinzena se não existir
+            try {
+                await client.query(`ALTER TABLE producao ADD COLUMN IF NOT EXISTS quinzena TEXT DEFAULT 'dia_30'`);
+                console.log('Coluna quinzena adicionada (se não existia)');
+            } catch (error) {
+                console.log('Coluna quinzena já existe ou erro ao adicionar:', error.message);
+            }
+            
             // Criar tabela folha_pagamento
             try {
                 // Tentar dropar a tabela existente para recriar com estrutura correta
@@ -329,6 +351,7 @@ const db = new sqlite3.Database('./erp.db', (err) => {
             id_funcionario INTEGER NOT NULL,
             maquinas_produzidas INTEGER NOT NULL,
             data_producao DATE NOT NULL,
+            quinzena TEXT DEFAULT 'dia_30',
             FOREIGN KEY (id_funcionario) REFERENCES funcionarios(id)
         )`);
 
@@ -1628,10 +1651,10 @@ app.post('/api/producao', async (req, res) => {
     console.log('Dados recebidos:', req.body);
     
     try {
-        const { id_funcionario, maquinas_produzidas, data_producao } = req.body;
+        const { id_funcionario, maquinas_produzidas, data_producao, quinzena } = req.body;
         
         // Validação básica
-        if (!id_funcionario || !maquinas_produzidas || !data_producao) {
+        if (!id_funcionario || !maquinas_produzidas || !data_producao || !quinzena) {
             console.log('Erro: Campos obrigatórios faltando');
             return res.status(400).json({ error: 'Todos os campos são obrigatórios' });
         }
@@ -1674,9 +1697,9 @@ app.post('/api/producao', async (req, res) => {
                 
                 // Inserir produção
                 const result = await client.query(
-                    `INSERT INTO producao (id_funcionario, maquinas_produzidas, data_producao) 
-                     VALUES ($1, $2, $3) RETURNING *`,
-                    [id_funcionario, maquinas_produzidas, data_producao]
+                    `INSERT INTO producao (id_funcionario, maquinas_produzidas, data_producao, quinzena) 
+                     VALUES ($1, $2, $3, $4) RETURNING *`,
+                    [id_funcionario, maquinas_produzidas, data_producao, quinzena]
                 );
                 
                 console.log('Produção inserida no PostgreSQL:', result.rows[0]);
@@ -1711,8 +1734,8 @@ app.post('/api/producao', async (req, res) => {
                     }
                     
                     // Inserir produção
-                    const sql = 'INSERT INTO producao (id_funcionario, maquinas_produzidas, data_producao) VALUES (?, ?, ?)';
-                    const params = [id_funcionario, maquinas_produzidas, data_producao];
+                    const sql = 'INSERT INTO producao (id_funcionario, maquinas_produzidas, data_producao, quinzena) VALUES (?, ?, ?, ?)';
+                    const params = [id_funcionario, maquinas_produzidas, data_producao, quinzena];
                     
                     db.run(sql, params, function(err) {
                         if (err) {

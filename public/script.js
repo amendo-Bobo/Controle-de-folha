@@ -745,8 +745,9 @@ async function salvarProducao() {
     const id_funcionario = document.getElementById('producao-funcionario').value;
     const maquinas = parseInt(document.getElementById('producao-maquinas').value);
     const data = document.getElementById('producao-data').value;
+    const quinzena = document.getElementById('producao-quinzena').value;
     
-    if (!id_funcionario || maquinas === null || !data) {
+    if (!id_funcionario || maquinas === null || !data || !quinzena) {
         alert('Preencha todos os campos!');
         return;
     }
@@ -758,7 +759,8 @@ async function salvarProducao() {
             body: JSON.stringify({
                 id_funcionario,
                 maquinas_produzidas: maquinas,
-                data_producao: data
+                data_producao: data,
+                quinzena
             })
         });
         

@@ -37,11 +37,18 @@ echo.
 echo Iniciando servidor na porta 3000...
 echo.
 echo O sistema estara disponivel em: http://localhost:3000
+echo Acesse tambem pelo seu IP: http://192.168.1.101:3000
 echo.
 echo Pressione CTRL+C para parar o servidor
 echo ========================================
 echo.
+echo Mantenha esta janela aberta enquanto usar o sistema!
+echo.
 
-npm start
+REM Iniciar servidor e manter janela aberta
+node server-teste-local.js
 
-pause
+echo.
+echo Servidor foi encerrado.
+echo Pressione qualquer tecla para fechar esta janela...
+pause >nul
