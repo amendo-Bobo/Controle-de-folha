@@ -162,6 +162,9 @@ function setupNavigation() {
                 case 'producao':
                     carregarProducao();
                     break;
+                case 'administrativo':
+                    carregarAdministrativo();
+                    break;
                 case 'folha-pagamento':
                     carregarFolhaPagamento();
                     break;
@@ -476,6 +479,33 @@ async function carregarProducaoFuncionarios() {
         
     } catch (error) {
         console.error('Erro ao carregar funcionários de produção:', error);
+    }
+}
+
+async function carregarAdministrativo() {
+    try {
+        const response = await fetch(`${API_BASE}/api/funcionarios`);
+        const funcionarios = await response.json();
+        const adminFuncs = funcionarios.filter(f => f.tipo === 'administrativo');
+        
+        const tabela = document.getElementById('tabela-administrativo');
+        tabela.innerHTML = adminFuncs.map(f => `
+            <tr>
+                <td>${f.id}</td>
+                <td>${f.nome}</td>
+                <td>R$ ${(f.salario_base || 0).toFixed(2)}</td>
+                <td>${f.dia_15_percent || 50}%</td>
+                <td>${f.dia_30_percent || 50}%</td>
+                <td>
+                    <span class="badge ${f.ativo ? 'bg-success' : 'bg-danger'}">
+                        ${f.ativo ? 'Ativo' : 'Inativo'}
+                    </span>
+                </td>
+            </tr>
+        `).join('');
+        
+    } catch (error) {
+        console.error('Erro ao carregar funcionários administrativos:', error);
     }
 }
 

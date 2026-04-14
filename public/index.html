@@ -121,6 +121,9 @@
                     <a class="nav-link" href="#" data-page="producao">
                         <i class="bi bi-gear"></i> Produção
                     </a>
+                    <a class="nav-link" href="#" data-page="administrativo">
+                        <i class="bi bi-person-workspace"></i> Administrativo
+                    </a>
                     <a class="nav-link" href="#" data-page="folha-pagamento">
                         <i class="bi bi-cash-stack"></i> Folha Pagamento
                     </a>
@@ -302,6 +305,39 @@
                                         </tr>
                                     </thead>
                                     <tbody id="tabela-producao"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Administrativo -->
+                <div id="administrativo" class="page-section">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h2>Administrativo</h2>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="alert alert-info">
+                                <i class="bi bi-info-circle"></i>
+                                Funcionários do tipo <strong>Administrativo</strong> têm salário fixo e são pagos por quinzena (dia 15 e dia 30).
+                                Eles não participam das movimentações de vendas e produção.
+                            </div>
+                            
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>ID</th>
+                                            <th>Nome</th>
+                                            <th>Salário Base</th>
+                                            <th>Quinzena Dia 15</th>
+                                            <th>Quinzena Dia 30</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tabela-administrativo"></tbody>
                                 </table>
                             </div>
                         </div>
