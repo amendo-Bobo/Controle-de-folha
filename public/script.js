@@ -2005,6 +2005,7 @@ async function gerarPDFHolerite(funcionario, folha, mes, totalMaquinas = 0) {
     const mesExtenso = meses[parseInt(mesNum) - 1];
     
     // Variáveis para cálculos
+    let descricaoSalario = "";
     let totalAjustesProventos = 0;
     let totalAjustesDescontos = 0;
     let totalProventos = 0;
@@ -2065,7 +2066,10 @@ async function gerarPDFHolerite(funcionario, folha, mes, totalMaquinas = 0) {
     
     // Honorários Mensais
     doc.text("001", 12, yItem);
-    doc.text("HONORÁRIOS MENSAL", 30, yItem);
+    descricaoSalario = folha.quinzena && folha.quinzena !== 'mensal' 
+        ? `HONORÁRIOS ${folha.quinzena === 'dia_15' ? 'DIA 15' : 'DIA 30'}`
+        : "HONORÁRIOS MENSAL";
+    doc.text(descricaoSalario, 30, yItem);
     doc.text(folha.salario_base.toFixed(2), 110, yItem);
     doc.text(folha.salario_base.toFixed(2), 140, yItem);
     yItem += 5;
@@ -2228,7 +2232,10 @@ async function gerarPDFHolerite(funcionario, folha, mes, totalMaquinas = 0) {
     
     // Honorários Mensais
     doc.text("001", 12, yItem);
-    doc.text("HONORÁRIOS MENSAL", 30, yItem);
+    descricaoSalario = folha.quinzena && folha.quinzena !== 'mensal' 
+        ? `HONORÁRIOS ${folha.quinzena === 'dia_15' ? 'DIA 15' : 'DIA 30'}`
+        : "HONORÁRIOS MENSAL";
+    doc.text(descricaoSalario, 30, yItem);
     doc.text(folha.salario_base.toFixed(2), 110, yItem);
     doc.text(folha.salario_base.toFixed(2), 140, yItem);
     yItem += 5;
@@ -2339,7 +2346,10 @@ async function gerarPDFHolerite(funcionario, folha, mes, totalMaquinas = 0) {
     
     // Honorários Mensais
     doc.text("001", 12, yItem);
-    doc.text("HONORÁRIOS MENSAL", 30, yItem);
+    descricaoSalario = folha.quinzena && folha.quinzena !== 'mensal' 
+        ? `HONORÁRIOS ${folha.quinzena === 'dia_15' ? 'DIA 15' : 'DIA 30'}`
+        : "HONORÁRIOS MENSAL";
+    doc.text(descricaoSalario, 30, yItem);
     doc.text(folha.salario_base.toFixed(2), 110, yItem);
     doc.text(folha.salario_base.toFixed(2), 140, yItem);
     yItem += 5;
