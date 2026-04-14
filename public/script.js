@@ -505,6 +505,14 @@ async function carregarAdministrativo() {
                         ${f.ativo ? 'Ativo' : 'Inativo'}
                     </span>
                 </td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary" onclick="editarFuncionario(${f.id})">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="desativarFuncionario(${f.id})">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
             </tr>
         `).join('');
         
