@@ -2726,8 +2726,8 @@ app.post('/api/gerar-folha/:mes', async (req, res) => {
             return res.status(400).json({ error: 'Formato de mês inválido. Use YYYY-MM' });
         }
         
-        if (!quinzena || !['dia_15', 'dia_30', 'mensal'].includes(quinzena)) {
-            return res.status(400).json({ error: 'Quinzena inválida. Use dia_15, dia_30 ou mensal' });
+        if (!quinzena || !['dia_15', 'dia_30'].includes(quinzena)) {
+            return res.status(400).json({ error: 'Quinzena inválida. Use dia_15 ou dia_30' });
         }
         
         if (useSupabase) {
@@ -2753,10 +2753,11 @@ app.post('/api/gerar-folha/:mes', async (req, res) => {
                 
                 // Filtrar funcionários por tipo e quinzena
                 let tipoFilter = '';
-                if (quinzena === 'mensal') {
-                    tipoFilter = "tipo = 'vendedora'";
-                } else {
+                if (quinzena === 'dia_15') {
                     tipoFilter = "tipo IN ('administrativo', 'producao')";
+                } else {
+                    // dia_30: todos os tipos
+                    tipoFilter = "tipo IN ('administrativo', 'producao', 'vendedora')";
                 }
                 
                 const funcResult = await client.query(
@@ -2873,8 +2874,14 @@ app.post('/api/gerar-folha/:mes', async (req, res) => {
                         // Calcular salário base com porcentagem da quinzena
                         const percentual = quinzena === 'dia_15' ? (func.dia_15_percent || 50) : (func.dia_30_percent || 50);
                         salarioBase = (func.salario_base || 0) * (percentual / 100);
-                        comissoes = totalProduzido * func.comissao_maquina_producao;
-                        console.log('Produção:', func.nome, 'Salário base:', func.salario_base, 'Percentual:', percentual, 'Salário quinzena:', salarioBase);
+                        
+                        // No dia 30, incluir comissão por montagem
+                        if (quinzena === 'dia_30') {
+                            comissoes = totalProduzido * func.comissao_maquina_producao;
+                            console.log('Produção:', func.nome, 'Salário base:', func.salario_base, 'Percentual:', percentual, 'Salário quinzena:', salarioBase, 'Comissão:', comissoes);
+                        } else {
+                            console.log('Produção:', func.nome, 'Salário base:', func.salario_base, 'Percentual:', percentual, 'Salário quinzena:', salarioBase, 'Comissão: 0 (dia 15)');
+                        }
                     }
                     
                     const total = salarioBase + comissoes + bonus;
