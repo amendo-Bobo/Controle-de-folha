@@ -1082,6 +1082,63 @@ app.put('/api/funcionarios/:id', async (req, res) => {
     }
 });
 
+// DELETE funcionarios/:id
+app.delete('/api/funcionarios/:id', async (req, res) => {
+    console.log('=== DELETE /api/funcionarios/:id ===');
+    console.log('ID:', req.params.id);
+    
+    try {
+        const { id } = req.params;
+        
+        if (useSupabase) {
+            // Usar PostgreSQL direto
+            console.log('Excluindo funcionário no PostgreSQL...');
+            const { Client } = require('pg');
+            
+            try {
+                const poolerUrl = databaseUrl.replace(
+                    'postgresql://postgres:tiVW2cmpeVStByLm@db.yuwddqxdnyjvilbmjooc.supabase.co:5432/postgres',
+                    'postgresql://postgres.yuwddqxdnyjvilbmjooc:tiVW2cmpeVStByLm@aws-1-sa-east-1.pooler.supabase.com:6543/postgres'
+                );
+                
+                const client = new Client({
+                    connectionString: poolerUrl,
+                    ssl: { rejectUnauthorized: false },
+                    connectionTimeoutMillis: 10000,
+                    query_timeout: 10000
+                });
+                
+                await client.connect();
+                
+                const result = await client.query('DELETE FROM funcionarios WHERE id = $1 RETURNING *', [id]);
+                
+                console.log('Funcionário excluído no PostgreSQL:', result.rows[0]);
+                await client.end();
+                res.json({ message: 'Funcionário excluído com sucesso!' });
+                
+            } catch (pgError) {
+                console.log('PostgreSQL falhou, usando SQLite fallback:', pgError.message);
+                res.status(500).json({ error: pgError.message });
+            }
+        } else {
+            // Usar SQLite local
+            const sql = 'DELETE FROM funcionarios WHERE id = ?';
+            
+            db.run(sql, [id], function(err) {
+                if (err) {
+                    console.error('Erro ao excluir:', err);
+                    return res.status(500).json({ error: err.message });
+                }
+                console.log('Funcionário excluído com ID:', id);
+                res.json({ message: 'Funcionário excluído com sucesso!' });
+            });
+        }
+    } catch (error) {
+        console.error('Erro geral:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // PUT funcionarios/:id/desativar
 app.put('/api/funcionarios/:id/desativar', async (req, res) => {
     console.log('=== PUT /api/funcionarios/:id/desativar ===');

@@ -1753,22 +1753,22 @@ function formatarMes(mes) {
 }
 
 async function desativarFuncionario(id) {
-    if (confirm('Tem certeza que deseja desativar este funcionário?')) {
+    if (confirm('Tem certeza que deseja excluir este funcionário?')) {
         try {
-            const response = await fetch(`${API_BASE}/api/funcionarios/${id}/desativar`, {
-                method: 'PUT'
+            const response = await fetch(`${API_BASE}/api/funcionarios/${id}`, {
+                method: 'DELETE'
             });
             
             if (response.ok) {
                 carregarFuncionarios();
                 carregarDashboard();
-                alert('Funcionário desativado com sucesso!');
+                alert('Funcionário excluído com sucesso!');
             } else {
-                alert('Erro ao desativar funcionário!');
+                alert('Erro ao excluir funcionário!');
             }
         } catch (error) {
-            console.error('Erro ao desativar funcionário:', error);
-            alert('Erro ao desativar funcionário!');
+            console.error('Erro ao excluir funcionário:', error);
+            alert('Erro ao excluir funcionário!');
         }
     }
 }
