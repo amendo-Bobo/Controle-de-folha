@@ -164,9 +164,12 @@ async function createSupabaseTables() {
                     id BIGSERIAL PRIMARY KEY,
                     id_funcionario BIGINT NOT NULL REFERENCES funcionarios(id),
                     mes_referencia TEXT NOT NULL,
+                    quinzena TEXT NOT NULL DEFAULT 'mensal',
                     salario_base REAL NOT NULL DEFAULT 0,
                     comissoes REAL NOT NULL DEFAULT 0,
                     bonus REAL NOT NULL DEFAULT 0,
+                    vales REAL NOT NULL DEFAULT 0,
+                    outros_descontos REAL NOT NULL DEFAULT 0,
                     total REAL NOT NULL DEFAULT 0,
                     data_geracao DATE DEFAULT CURRENT_DATE NOT NULL,
                     detalhe_comissoes TEXT,
@@ -175,6 +178,28 @@ async function createSupabaseTables() {
                 )
             `);
             console.log('Tabela folha_pagamento recriada com estrutura correta');
+            
+            // Adicionar colunas de descontos e quinzena se não existirem
+            try {
+                await client.query(`ALTER TABLE folha_pagamento ADD COLUMN quinzena TEXT DEFAULT 'mensal'`);
+                console.log('Coluna quinzena adicionada (se não existia)');
+            } catch (error) {
+                console.log('Coluna quinzena já existe ou erro ao adicionar:', error.message);
+            }
+            
+            try {
+                await client.query(`ALTER TABLE folha_pagamento ADD COLUMN vales REAL DEFAULT 0`);
+                console.log('Coluna vales adicionada (se não existia)');
+            } catch (error) {
+                console.log('Coluna vales já existe ou erro ao adicionar:', error.message);
+            }
+            
+            try {
+                await client.query(`ALTER TABLE folha_pagamento ADD COLUMN outros_descontos REAL DEFAULT 0`);
+                console.log('Coluna outros_descontos adicionada (se não existia)');
+            } catch (error) {
+                console.log('Coluna outros_descontos já existe ou erro ao adicionar:', error.message);
+            }
             
         } catch (connError) {
             console.log('Erro na conexão (timeout):', connError.message);
@@ -287,9 +312,12 @@ const db = new sqlite3.Database('./erp.db', (err) => {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             id_funcionario INTEGER NOT NULL,
             mes_referencia TEXT NOT NULL,
+            quinzena TEXT NOT NULL DEFAULT 'mensal',
             salario_base REAL NOT NULL,
             comissoes REAL NOT NULL,
             bonus REAL NOT NULL,
+            vales REAL NOT NULL DEFAULT 0,
+            outros_descontos REAL NOT NULL DEFAULT 0,
             total REAL NOT NULL,
             data_geracao DATE NOT NULL,
             detalhe_comissoes TEXT,
@@ -300,6 +328,25 @@ const db = new sqlite3.Database('./erp.db', (err) => {
         db.run(`ALTER TABLE folha_pagamento ADD COLUMN detalhe_comissoes TEXT`, (err) => {
             if (err && !err.message.includes('duplicate column name')) {
                 console.log('Coluna detalhe_comissoes já existe ou erro:', err.message);
+            }
+        });
+        
+        // Adicionar colunas de descontos e quinzena se não existirem
+        db.run(`ALTER TABLE folha_pagamento ADD COLUMN quinzena TEXT DEFAULT 'mensal'`, (err) => {
+            if (err && !err.message.includes('duplicate column name')) {
+                console.log('Coluna quinzena já existe ou erro:', err.message);
+            }
+        });
+        
+        db.run(`ALTER TABLE folha_pagamento ADD COLUMN vales REAL DEFAULT 0`, (err) => {
+            if (err && !err.message.includes('duplicate column name')) {
+                console.log('Coluna vales já existe ou erro:', err.message);
+            }
+        });
+        
+        db.run(`ALTER TABLE folha_pagamento ADD COLUMN outros_descontos REAL DEFAULT 0`, (err) => {
+            if (err && !err.message.includes('duplicate column name')) {
+                console.log('Coluna outros_descontos já existe ou erro:', err.message);
             }
         });
 
