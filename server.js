@@ -617,7 +617,7 @@ app.post('/api/vales', async (req, res) => {
                 const result = await client.query(
                     `INSERT INTO vales (id_funcionario, motivo, valor, observacao, quinzena, mes_referencia, data_lancamento, status, tipo_vale, num_parcelas, valor_parcela, parcela_atual, quinzena_inicial) 
                      VALUES ($1, $2, $3, $4, $5, $6, CURRENT_DATE, 'pendente', $7, $8, $9, $10, $11) RETURNING *`,
-                    [id_funcionario, motivo, valor, observacao || null, quinzena, mes_referencia, tipo_vale || 'unico', num_parcelas || 1, valor_parcela || null, parcela_atual || 1, quinzena_inicial || quinzena]
+                    [id_funcionario, motivo, valor, observacao || null, quinzena, mes_referencia, tipo_vale || 'unico', num_parcelas || 1, valor_parcela || null, parcela_atual || 0, quinzena_inicial || quinzena]
                 );
                 
                 console.log('Vale inserido no PostgreSQL:', result.rows[0]);
@@ -3187,6 +3187,31 @@ app.delete('/api/folha-pagamento/:mes', async (req, res) => {
                 const result = await client.query(query, params);
                 
                 console.log('Folha de pagamento excluída no PostgreSQL:', result.rows.length, 'registros');
+                
+                // Decrementar parcela_atual dos vales parcelados para este mês
+                for (const folha of result.rows) {
+                    console.log('Processando folha excluída para funcionário:', folha.id_funcionario);
+                    
+                    // Buscar vales parcelados do funcionário no mês
+                    const valesResult = await client.query(
+                        "SELECT * FROM vales WHERE id_funcionario = $1 AND mes_referencia = $2 AND tipo_vale = 'parcelado'",
+                        [folha.id_funcionario, mes]
+                    );
+                    
+                    console.log('Vales parcelados encontrados:', valesResult.rows.length);
+                    
+                    // Para cada vale parcelado, decrementar parcela_atual se > 0
+                    for (const vale of valesResult.rows) {
+                        if (vale.parcela_atual > 0) {
+                            await client.query(
+                                "UPDATE vales SET parcela_atual = parcela_atual - 1, status = 'pendente' WHERE id = $1",
+                                [vale.id]
+                            );
+                            console.log('Parcela decrementada para vale:', vale.id, 'nova parcela_atual:', vale.parcela_atual - 1);
+                        }
+                    }
+                }
+                
                 await client.end();
                 
                 res.json({ message: 'Folha de pagamento excluída com sucesso!' });
@@ -3209,6 +3234,25 @@ app.delete('/api/folha-pagamento/:mes', async (req, res) => {
                         return res.status(500).json({ error: err.message });
                     }
                     console.log('Folha de pagamento excluída para o mês:', mes);
+                    
+                    // Decrementar parcela_atual dos vales parcelados para este mês
+                    db.all("SELECT * FROM folha_pagamento WHERE mes_referencia = ?", [mes], (folhaErr, folhaRows) => {
+                        if (!folhaErr && folhaRows && folhaRows.length > 0) {
+                            folhaRows.forEach(folha => {
+                                db.all("SELECT * FROM vales WHERE id_funcionario = ? AND mes_referencia = ? AND tipo_vale = 'parcelado'", [folha.id_funcionario, mes], (valeErr, valeRows) => {
+                                    if (!valeErr && valeRows && valeRows.length > 0) {
+                                        valeRows.forEach(vale => {
+                                            if (vale.parcela_atual > 0) {
+                                                db.run("UPDATE vales SET parcela_atual = parcela_atual - 1, status = 'pendente' WHERE id = ?", [vale.id]);
+                                                console.log('Parcela decrementada para vale:', vale.id, 'nova parcela_atual:', vale.parcela_atual - 1);
+                                            }
+                                        });
+                                    }
+                                });
+                            });
+                        }
+                    });
+                    
                     res.json({ message: 'Folha de pagamento excluída com sucesso!' });
                 });
             }
@@ -3228,6 +3272,25 @@ app.delete('/api/folha-pagamento/:mes', async (req, res) => {
                     return res.status(500).json({ error: err.message });
                 }
                 console.log('Folha de pagamento excluída para o mês:', mes);
+                
+                // Decrementar parcela_atual dos vales parcelados para este mês
+                db.all("SELECT * FROM folha_pagamento WHERE mes_referencia = ?", [mes], (folhaErr, folhaRows) => {
+                    if (!folhaErr && folhaRows && folhaRows.length > 0) {
+                        folhaRows.forEach(folha => {
+                            db.all("SELECT * FROM vales WHERE id_funcionario = ? AND mes_referencia = ? AND tipo_vale = 'parcelado'", [folha.id_funcionario, mes], (valeErr, valeRows) => {
+                                if (!valeErr && valeRows && valeRows.length > 0) {
+                                    valeRows.forEach(vale => {
+                                        if (vale.parcela_atual > 0) {
+                                            db.run("UPDATE vales SET parcela_atual = parcela_atual - 1, status = 'pendente' WHERE id = ?", [vale.id]);
+                                            console.log('Parcela decrementada para vale:', vale.id, 'nova parcela_atual:', vale.parcela_atual - 1);
+                                        }
+                                    });
+                                }
+                            });
+                        });
+                    }
+                });
+                
                 res.json({ message: 'Folha de pagamento excluída com sucesso!' });
             });
         }
