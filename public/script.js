@@ -686,7 +686,8 @@ function verDetalhesVale(id) {
         .then(response => response.json())
         .then(vales => {
             console.log('Vales encontrados:', vales);
-            const vale = vales.find(v => v.id === id);
+            console.log('Procurando ID:', id, 'Tipo:', typeof id);
+            const vale = vales.find(v => v.id == id);
             console.log('Vale encontrado:', vale);
             if (vale) {
                 const detalhesContent = `
@@ -727,6 +728,28 @@ function verDetalhesVale(id) {
                             <div class="progress-bar" role="progressbar" style="width: ${(vale.parcela_atual / vale.num_parcelas) * 100}%" aria-valuenow="${vale.parcela_atual}" aria-valuemin="0" aria-valuemax="${vale.num_parcelas}">
                                 ${vale.parcela_atual}/${vale.num_parcelas} parcelas pagas
                             </div>
+                        </div>
+                        <hr>
+                        <h6>Status das Parcelas</h6>
+                        <div class="row">
+                            ${Array.from({length: vale.num_parcelas}, (_, i) => {
+                                const parcelaNum = i + 1;
+                                const status = parcelaNum <= vale.parcela_atual ? 'paga' : 'pendente';
+                                const color = status === 'paga' ? 'success' : 'warning';
+                                const icon = status === 'paga' ? 'check-circle' : 'clock';
+                                return `
+                                    <div class="col-md-3 mb-2">
+                                        <div class="card bg-light">
+                                            <div class="card-body p-2 text-center">
+                                                <small class="text-muted">Parcela ${parcelaNum}</small><br>
+                                                <span class="badge bg-${color}">
+                                                    <i class="bi bi-${icon}"></i> ${status.charAt(0).toUpperCase() + status.slice(1)}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
                         </div>
                     ` : `
                         <hr>
