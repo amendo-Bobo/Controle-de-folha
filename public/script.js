@@ -537,16 +537,20 @@ async function carregarVales() {
                 <td>${v.nome_funcionario}</td>
                 <td>${v.motivo}</td>
                 <td>R$ ${v.valor.toFixed(2)}</td>
+                <td>${v.tipo_vale === 'parcelado' ? `${v.parcela_atual}/${v.num_parcelas}x` : 'Único'}</td>
                 <td>${v.quinzena === 'dia_15' ? 'Dia 15' : 'Dia 30'}</td>
                 <td>${v.mes_referencia}</td>
                 <td>${new Date(v.data_lancamento).toLocaleDateString('pt-BR')}</td>
                 <td>
                     <span class="badge ${v.status === 'pendente' ? 'bg-warning' : 'bg-success'}">
-                        ${v.status === 'pendente' ? 'Pendente' : 'Aplicado'}
+                        ${v.status === 'pendente' ? 'Pendente' : 'Concluído'}
                     </span>
                 </td>
                 <td>
-                    <button class="btn btn-sm btn-danger" onclick="deletarVale(${v.id})">
+                    <button class="btn btn-sm btn-info" onclick="verDetalhesVale(${v.id})" title="Ver Detalhes">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="deletarVale(${v.id})" title="Excluir">
                         <i class="bi bi-trash"></i>
                     </button>
                 </td>
@@ -565,9 +569,17 @@ async function salvarVale() {
     const observacao = document.getElementById('vale-observacao').value;
     const quinzena = document.getElementById('vale-quinzena').value;
     const mesReferencia = document.getElementById('vale-mes').value;
+    const tipoVale = document.getElementById('vale-tipo').value;
+    const numParcelas = parseInt(document.getElementById('vale-num-parcelas').value) || 1;
+    const valorParcela = parseFloat(document.getElementById('vale-valor-parcela').value) || valor;
     
     if (!idFuncionario || !motivo || !valor || !quinzena || !mesReferencia) {
         alert('Preencha todos os campos obrigatórios!');
+        return;
+    }
+    
+    if (tipoVale === 'parcelado' && numParcelas < 2) {
+        alert('Para vale parcelado, o número de parcelas deve ser pelo menos 2!');
         return;
     }
     
@@ -581,7 +593,12 @@ async function salvarVale() {
                 valor,
                 observacao,
                 quinzena,
-                mes_referencia: mesReferencia
+                mes_referencia: mesReferencia,
+                tipo_vale: tipoVale,
+                num_parcelas: numParcelas,
+                valor_parcela: valorParcela,
+                parcela_atual: 1,
+                quinzena_inicial: quinzena
             })
         });
         
@@ -627,6 +644,93 @@ async function deletarVale(id) {
             alert('Erro ao excluir vale!');
         }
     }
+}
+
+function toggleCamposParcelamento() {
+    const tipoVale = document.getElementById('vale-tipo').value;
+    const camposParcelamento = document.getElementById('campos-parcelamento');
+    
+    if (tipoVale === 'parcelado') {
+        camposParcelamento.style.display = 'block';
+    } else {
+        camposParcelamento.style.display = 'none';
+        document.getElementById('vale-num-parcelas').value = '';
+        document.getElementById('vale-valor-parcela').value = '';
+    }
+}
+
+function calcularValorParcela() {
+    const valorTotal = parseFloat(document.getElementById('vale-valor').value) || 0;
+    const numParcelas = parseInt(document.getElementById('vale-num-parcelas').value) || 1;
+    
+    if (numParcelas > 0 && valorTotal > 0) {
+        const valorParcela = valorTotal / numParcelas;
+        document.getElementById('vale-valor-parcela').value = valorParcela.toFixed(2);
+    }
+}
+
+function verDetalhesVale(id) {
+    // Buscar vales para encontrar o vale pelo ID
+    fetch(`${API_BASE}/api/vales`)
+        .then(response => response.json())
+        .then(vales => {
+            const vale = vales.find(v => v.id === id);
+            if (vale) {
+                const detalhesContent = `
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>ID:</strong> ${vale.id}</p>
+                            <p><strong>Funcionário:</strong> ${vale.nome_funcionario}</p>
+                            <p><strong>Motivo:</strong> ${vale.motivo}</p>
+                            <p><strong>Valor Total:</strong> R$ ${vale.valor.toFixed(2)}</p>
+                            <p><strong>Observação:</strong> ${vale.observacao || 'Nenhuma'}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Quinzena:</strong> ${vale.quinzena === 'dia_15' ? 'Dia 15' : 'Dia 30'}</p>
+                            <p><strong>Mês Referência:</strong> ${vale.mes_referencia}</p>
+                            <p><strong>Data Lançamento:</strong> ${new Date(vale.data_lancamento).toLocaleDateString('pt-BR')}</p>
+                            <p><strong>Status:</strong> 
+                                <span class="badge ${vale.status === 'pendente' ? 'bg-warning' : 'bg-success'}">
+                                    ${vale.status === 'pendente' ? 'Pendente' : 'Concluído'}
+                                </span>
+                            </p>
+                        </div>
+                    </div>
+                    ${vale.tipo_vale === 'parcelado' ? `
+                        <hr>
+                        <h6>Detalhes do Parcelamento</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p><strong>Tipo:</strong> Vale Parcelado</p>
+                                <p><strong>Número de Parcelas:</strong> ${vale.num_parcelas}</p>
+                                <p><strong>Valor da Parcela:</strong> R$ ${(vale.valor_parcela || vale.valor / vale.num_parcelas).toFixed(2)}</p>
+                            </div>
+                            <div class="col-md-6">
+                                <p><strong>Parcela Atual:</strong> ${vale.parcela_atual} / ${vale.num_parcelas}</p>
+                                <p><strong>Quinzena Inicial:</strong> ${vale.quinzena_inicial === 'dia_15' ? 'Dia 15' : 'Dia 30'}</p>
+                            </div>
+                        </div>
+                        <div class="progress mt-3">
+                            <div class="progress-bar" role="progressbar" style="width: ${(vale.parcela_atual / vale.num_parcelas) * 100}%" aria-valuenow="${vale.parcela_atual}" aria-valuemin="0" aria-valuemax="${vale.num_parcelas}">
+                                ${vale.parcela_atual}/${vale.num_parcelas} parcelas pagas
+                            </div>
+                        </div>
+                    ` : `
+                        <hr>
+                        <p><strong>Tipo:</strong> Vale Único</p>
+                    `}
+                `;
+                document.getElementById('detalhes-vale-content').innerHTML = detalhesContent;
+                
+                // Abrir modal
+                const modal = new bootstrap.Modal(document.getElementById('modalDetalhesVale'));
+                modal.show();
+            }
+        })
+        .catch(error => {
+            console.error('Erro ao buscar detalhes do vale:', error);
+            alert('Erro ao buscar detalhes do vale!');
+        });
 }
 
 async function carregarFuncionariosVales() {

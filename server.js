@@ -220,6 +220,11 @@ async function createSupabaseTables() {
                     mes_referencia TEXT NOT NULL,
                     data_lancamento DATE DEFAULT CURRENT_DATE NOT NULL,
                     status TEXT NOT NULL DEFAULT 'pendente',
+                    tipo_vale TEXT DEFAULT 'unico',
+                    num_parcelas INTEGER DEFAULT 1,
+                    valor_parcela REAL,
+                    parcela_atual INTEGER DEFAULT 1,
+                    quinzena_inicial TEXT,
                     created_at TIMESTAMP DEFAULT NOW(),
                     updated_at TIMESTAMP DEFAULT NOW()
                 )
@@ -246,6 +251,42 @@ async function createSupabaseTables() {
                 console.log('Coluna outros_descontos adicionada (se não existia)');
             } catch (error) {
                 console.log('Coluna outros_descontos já existe ou erro ao adicionar:', error.message);
+            }
+            
+            // Adicionar colunas de parcelamento em vales se não existirem
+            try {
+                await client.query(`ALTER TABLE vales ADD COLUMN tipo_vale TEXT DEFAULT 'unico'`);
+                console.log('Coluna tipo_vale adicionada (se não existia)');
+            } catch (error) {
+                console.log('Coluna tipo_vale já existe ou erro ao adicionar:', error.message);
+            }
+            
+            try {
+                await client.query(`ALTER TABLE vales ADD COLUMN num_parcelas INTEGER DEFAULT 1`);
+                console.log('Coluna num_parcelas adicionada (se não existia)');
+            } catch (error) {
+                console.log('Coluna num_parcelas já existe ou erro ao adicionar:', error.message);
+            }
+            
+            try {
+                await client.query(`ALTER TABLE vales ADD COLUMN valor_parcela REAL`);
+                console.log('Coluna valor_parcela adicionada (se não existia)');
+            } catch (error) {
+                console.log('Coluna valor_parcela já existe ou erro ao adicionar:', error.message);
+            }
+            
+            try {
+                await client.query(`ALTER TABLE vales ADD COLUMN parcela_atual INTEGER DEFAULT 1`);
+                console.log('Coluna parcela_atual adicionada (se não existia)');
+            } catch (error) {
+                console.log('Coluna parcela_atual já existe ou erro ao adicionar:', error.message);
+            }
+            
+            try {
+                await client.query(`ALTER TABLE vales ADD COLUMN quinzena_inicial TEXT`);
+                console.log('Coluna quinzena_inicial adicionada (se não existia)');
+            } catch (error) {
+                console.log('Coluna quinzena_inicial já existe ou erro ao adicionar:', error.message);
             }
             
         } catch (connError) {
@@ -383,6 +424,11 @@ const db = new sqlite3.Database('./erp.db', (err) => {
             mes_referencia TEXT NOT NULL,
             data_lancamento DATE NOT NULL,
             status TEXT NOT NULL DEFAULT 'pendente',
+            tipo_vale TEXT DEFAULT 'unico',
+            num_parcelas INTEGER DEFAULT 1,
+            valor_parcela REAL,
+            parcela_atual INTEGER DEFAULT 1,
+            quinzena_inicial TEXT,
             FOREIGN KEY (id_funcionario) REFERENCES funcionarios(id)
         )`);
 
@@ -409,6 +455,37 @@ const db = new sqlite3.Database('./erp.db', (err) => {
         db.run(`ALTER TABLE folha_pagamento ADD COLUMN outros_descontos REAL DEFAULT 0`, (err) => {
             if (err && !err.message.includes('duplicate column name')) {
                 console.log('Coluna outros_descontos já existe ou erro:', err.message);
+            }
+        });
+        
+        // Adicionar colunas de parcelamento em vales se não existirem
+        db.run(`ALTER TABLE vales ADD COLUMN tipo_vale TEXT DEFAULT 'unico'`, (err) => {
+            if (err && !err.message.includes('duplicate column name')) {
+                console.log('Coluna tipo_vale já existe ou erro:', err.message);
+            }
+        });
+        
+        db.run(`ALTER TABLE vales ADD COLUMN num_parcelas INTEGER DEFAULT 1`, (err) => {
+            if (err && !err.message.includes('duplicate column name')) {
+                console.log('Coluna num_parcelas já existe ou erro:', err.message);
+            }
+        });
+        
+        db.run(`ALTER TABLE vales ADD COLUMN valor_parcela REAL`, (err) => {
+            if (err && !err.message.includes('duplicate column name')) {
+                console.log('Coluna valor_parcela já existe ou erro:', err.message);
+            }
+        });
+        
+        db.run(`ALTER TABLE vales ADD COLUMN parcela_atual INTEGER DEFAULT 1`, (err) => {
+            if (err && !err.message.includes('duplicate column name')) {
+                console.log('Coluna parcela_atual já existe ou erro:', err.message);
+            }
+        });
+        
+        db.run(`ALTER TABLE vales ADD COLUMN quinzena_inicial TEXT`, (err) => {
+            if (err && !err.message.includes('duplicate column name')) {
+                console.log('Coluna quinzena_inicial já existe ou erro:', err.message);
             }
         });
 
@@ -496,7 +573,7 @@ app.post('/api/vales', async (req, res) => {
     console.log('Dados recebidos:', req.body);
     
     try {
-        const { id_funcionario, motivo, valor, observacao, quinzena, mes_referencia } = req.body;
+        const { id_funcionario, motivo, valor, observacao, quinzena, mes_referencia, tipo_vale, num_parcelas, valor_parcela, parcela_atual, quinzena_inicial } = req.body;
         
         // Validação básica
         if (!id_funcionario || !motivo || !valor || !quinzena || !mes_referencia) {
@@ -541,9 +618,9 @@ app.post('/api/vales', async (req, res) => {
                 
                 // Inserir vale
                 const result = await client.query(
-                    `INSERT INTO vales (id_funcionario, motivo, valor, observacao, quinzena, mes_referencia, data_lancamento, status) 
-                     VALUES ($1, $2, $3, $4, $5, $6, CURRENT_DATE, 'pendente') RETURNING *`,
-                    [id_funcionario, motivo, valor, observacao || null, quinzena, mes_referencia]
+                    `INSERT INTO vales (id_funcionario, motivo, valor, observacao, quinzena, mes_referencia, data_lancamento, status, tipo_vale, num_parcelas, valor_parcela, parcela_atual, quinzena_inicial) 
+                     VALUES ($1, $2, $3, $4, $5, $6, CURRENT_DATE, 'pendente', $7, $8, $9, $10, $11) RETURNING *`,
+                    [id_funcionario, motivo, valor, observacao || null, quinzena, mes_referencia, tipo_vale || 'unico', num_parcelas || 1, valor_parcela || null, parcela_atual || 1, quinzena_inicial || quinzena]
                 );
                 
                 console.log('Vale inserido no PostgreSQL:', result.rows[0]);
@@ -578,8 +655,8 @@ app.post('/api/vales', async (req, res) => {
                     }
                     
                     // Inserir vale
-                    const sql = 'INSERT INTO vales (id_funcionario, motivo, valor, observacao, quinzena, mes_referencia, data_lancamento, status) VALUES (?, ?, ?, ?, ?, ?, CURRENT_DATE, "pendente")';
-                    const params = [id_funcionario, motivo, valor, observacao || null, quinzena, mes_referencia];
+                    const sql = 'INSERT INTO vales (id_funcionario, motivo, valor, observacao, quinzena, mes_referencia, data_lancamento, status, tipo_vale, num_parcelas, valor_parcela, parcela_atual, quinzena_inicial) VALUES (?, ?, ?, ?, ?, ?, CURRENT_DATE, "pendente", ?, ?, ?, ?, ?)';
+                    const params = [id_funcionario, motivo, valor, observacao || null, quinzena, mes_referencia, tipo_vale || 'unico', num_parcelas || 1, valor_parcela || null, parcela_atual || 1, quinzena_inicial || quinzena];
                     
                     db.run(sql, params, function(err) {
                         if (err) {
@@ -597,6 +674,11 @@ app.post('/api/vales', async (req, res) => {
                             mes_referencia,
                             data_lancamento: new Date().toISOString().split('T')[0],
                             status: 'pendente',
+                            tipo_vale: tipo_vale || 'unico',
+                            num_parcelas: num_parcelas || 1,
+                            valor_parcela: valor_parcela || null,
+                            parcela_atual: parcela_atual || 1,
+                            quinzena_inicial: quinzena_inicial || quinzena,
                             nome_funcionario: row.nome
                         });
                     });
@@ -621,8 +703,8 @@ app.post('/api/vales', async (req, res) => {
                 }
                 
                 // Inserir vale
-                const sql = 'INSERT INTO vales (id_funcionario, motivo, valor, observacao, quinzena, mes_referencia, data_lancamento, status) VALUES (?, ?, ?, ?, ?, ?, CURRENT_DATE, "pendente")';
-                const params = [id_funcionario, motivo, valor, observacao || null, quinzena, mes_referencia];
+                const sql = 'INSERT INTO vales (id_funcionario, motivo, valor, observacao, quinzena, mes_referencia, data_lancamento, status, tipo_vale, num_parcelas, valor_parcela, parcela_atual, quinzena_inicial) VALUES (?, ?, ?, ?, ?, ?, CURRENT_DATE, "pendente", ?, ?, ?, ?, ?)';
+                const params = [id_funcionario, motivo, valor, observacao || null, quinzena, mes_referencia, tipo_vale || 'unico', num_parcelas || 1, valor_parcela || null, parcela_atual || 1, quinzena_inicial || quinzena];
                 
                 db.run(sql, params, function(err) {
                     if (err) {
@@ -640,6 +722,11 @@ app.post('/api/vales', async (req, res) => {
                         mes_referencia,
                         data_lancamento: new Date().toISOString().split('T')[0],
                         status: 'pendente',
+                        tipo_vale: tipo_vale || 'unico',
+                        num_parcelas: num_parcelas || 1,
+                        valor_parcela: valor_parcela || null,
+                        parcela_atual: parcela_atual || 1,
+                        quinzena_inicial: quinzena_inicial || quinzena,
                         nome_funcionario: row.nome
                     });
                 });
@@ -2382,11 +2469,30 @@ app.post('/api/folha-pagamento-quinzenal', async (req, res) => {
                     
                     // Buscar vales pendentes do funcionário para o mês e quinzena
                     const valesResult = await client.query(
-                        "SELECT COALESCE(SUM(valor), 0) as total FROM vales WHERE id_funcionario = $1 AND mes_referencia = $2 AND quinzena = $3 AND status = 'pendente'",
+                        "SELECT * FROM vales WHERE id_funcionario = $1 AND mes_referencia = $2 AND quinzena = $3 AND status = 'pendente'",
                         [func.id, mes_referencia, quinzena]
                     );
                     
-                    const totalVales = valesResult.rows[0].total || 0;
+                    let totalVales = 0;
+                    
+                    // Processar cada vale individualmente
+                    for (const vale of valesResult.rows) {
+                        if (vale.tipo_vale === 'unico') {
+                            // Vale único: descontar valor total e mudar status para concluído
+                            totalVales += vale.valor;
+                            await client.query(
+                                "UPDATE vales SET status = 'concluido' WHERE id = $1",
+                                [vale.id]
+                            );
+                        } else if (vale.tipo_vale === 'parcelado') {
+                            // Vale parcelado: descontar apenas valor da parcela
+                            totalVales += (vale.valor_parcela || vale.valor / vale.num_parcelas);
+                            await client.query(
+                                "UPDATE vales SET parcela_atual = parcela_atual + 1, status = CASE WHEN parcela_atual + 1 >= num_parcelas THEN 'concluido' ELSE 'pendente' END WHERE id = $1",
+                                [vale.id]
+                            );
+                        }
+                    }
                     
                     // Calcular total (salário + comissões - descontos)
                     const total = salarioBase + comissoes - totalVales - (outros_descontos || 0);
@@ -2451,9 +2557,22 @@ app.post('/api/folha-pagamento-quinzenal', async (req, res) => {
                     }
                     
                     // Buscar vales pendentes do funcionário para o mês e quinzena
-                    db.all("SELECT COALESCE(SUM(valor), 0) as total FROM vales WHERE id_funcionario = ? AND mes_referencia = ? AND quinzena = ? AND status = 'pendente'", [func.id, mes_referencia, quinzena], (valesErr, valesRows) => {
+                    db.all("SELECT * FROM vales WHERE id_funcionario = ? AND mes_referencia = ? AND quinzena = ? AND status = 'pendente'", [func.id, mes_referencia, quinzena], (valesErr, valesRows) => {
                         if (!valesErr && valesRows && valesRows.length > 0) {
-                            const totalVales = valesRows[0].total || 0;
+                            let totalVales = 0;
+                            
+                            // Processar cada vale individualmente
+                            valesRows.forEach(vale => {
+                                if (vale.tipo_vale === 'unico') {
+                                    // Vale único: descontar valor total e mudar status para concluído
+                                    totalVales += vale.valor;
+                                    db.run("UPDATE vales SET status = 'concluido' WHERE id = ?", [vale.id]);
+                                } else if (vale.tipo_vale === 'parcelado') {
+                                    // Vale parcelado: descontar apenas valor da parcela
+                                    totalVales += (vale.valor_parcela || vale.valor / vale.num_parcelas);
+                                    db.run("UPDATE vales SET parcela_atual = parcela_atual + 1, status = CASE WHEN parcela_atual + 1 >= num_parcelas THEN 'concluido' ELSE 'pendente' END WHERE id = ?", [vale.id]);
+                                }
+                            });
                             
                             // Calcular total (salário + comissões - descontos)
                             const total = salarioBase + comissoes - totalVales - (outros_descontos || 0);
@@ -2549,11 +2668,30 @@ app.post('/api/folha-pagamento', async (req, res) => {
                 
                 // Buscar vales pendentes do funcionário para o mês (independente da quinzena, pois vendedoras recebem tudo no dia 30)
                 const valesResult = await client.query(
-                    "SELECT COALESCE(SUM(valor), 0) as total FROM vales WHERE id_funcionario = $1 AND mes_referencia = $2 AND status = 'pendente'",
+                    "SELECT * FROM vales WHERE id_funcionario = $1 AND mes_referencia = $2 AND status = 'pendente'",
                     [id_funcionario, mes_referencia]
                 );
                 
-                const totalVales = valesResult.rows[0].total || 0;
+                let totalVales = 0;
+                
+                // Processar cada vale individualmente
+                for (const vale of valesResult.rows) {
+                    if (vale.tipo_vale === 'unico') {
+                        // Vale único: descontar valor total e mudar status para concluído
+                        totalVales += vale.valor;
+                        await client.query(
+                            "UPDATE vales SET status = 'concluido' WHERE id = $1",
+                            [vale.id]
+                        );
+                    } else if (vale.tipo_vale === 'parcelado') {
+                        // Vale parcelado: descontar apenas valor da parcela
+                        totalVales += (vale.valor_parcela || vale.valor / vale.num_parcelas);
+                        await client.query(
+                            "UPDATE vales SET parcela_atual = parcela_atual + 1, status = CASE WHEN parcela_atual + 1 >= num_parcelas THEN 'concluido' ELSE 'pendente' END WHERE id = $1",
+                            [vale.id]
+                        );
+                    }
+                }
                 
                 // Calcular total atualizado (salário + comissões + bonus - vales)
                 const totalAtualizado = salario_base + comissoes + bonus - totalVales;
@@ -2597,13 +2735,28 @@ app.post('/api/folha-pagamento', async (req, res) => {
                     }
                     
                     // Buscar vales pendentes do funcionário para o mês (independente da quinzena, pois vendedoras recebem tudo no dia 30)
-                    db.all("SELECT COALESCE(SUM(valor), 0) as total FROM vales WHERE id_funcionario = ? AND mes_referencia = ? AND status = 'pendente'", [id_funcionario, mes_referencia], (valesErr, valesRows) => {
+                    db.all("SELECT * FROM vales WHERE id_funcionario = ? AND mes_referencia = ? AND status = 'pendente'", [id_funcionario, mes_referencia], (valesErr, valesRows) => {
                         if (valesErr) {
                             console.error('Erro ao buscar vales:', valesErr);
                             return res.status(500).json({ error: valesErr.message });
                         }
                         
-                        const totalVales = valesRows && valesRows.length > 0 ? (valesRows[0].total || 0) : 0;
+                        let totalVales = 0;
+                        
+                        // Processar cada vale individualmente
+                        if (valesRows && valesRows.length > 0) {
+                            valesRows.forEach(vale => {
+                                if (vale.tipo_vale === 'unico') {
+                                    // Vale único: descontar valor total e mudar status para concluído
+                                    totalVales += vale.valor;
+                                    db.run("UPDATE vales SET status = 'concluido' WHERE id = ?", [vale.id]);
+                                } else if (vale.tipo_vale === 'parcelado') {
+                                    // Vale parcelado: descontar apenas valor da parcela
+                                    totalVales += (vale.valor_parcela || vale.valor / vale.num_parcelas);
+                                    db.run("UPDATE vales SET parcela_atual = parcela_atual + 1, status = CASE WHEN parcela_atual + 1 >= num_parcelas THEN 'concluido' ELSE 'pendente' END WHERE id = ?", [vale.id]);
+                                }
+                            });
+                        }
                         
                         // Calcular total atualizado (salário + comissões + bonus - vales)
                         const totalAtualizado = salario_base + comissoes + bonus - totalVales;

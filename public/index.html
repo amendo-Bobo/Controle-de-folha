@@ -366,6 +366,7 @@
                                             <th>Funcionário</th>
                                             <th>Motivo</th>
                                             <th>Valor (R$)</th>
+                                            <th>Tipo</th>
                                             <th>Quinzena</th>
                                             <th>Mês Referência</th>
                                             <th>Data Lançamento</th>
@@ -717,11 +718,46 @@
                             <label class="form-label">Mês Referência</label>
                             <input type="month" class="form-control" id="vale-mes" required>
                         </div>
+                        <div class="mb-3">
+                            <label class="form-label">Tipo de Vale</label>
+                            <select class="form-select" id="vale-tipo" onchange="toggleCamposParcelamento()">
+                                <option value="unico">Vale Único</option>
+                                <option value="parcelado">Vale Parcelado</option>
+                            </select>
+                        </div>
+                        <div id="campos-parcelamento" style="display: none;">
+                            <div class="mb-3">
+                                <label class="form-label">Número de Parcelas</label>
+                                <input type="number" class="form-control" id="vale-num-parcelas" min="2" max="12" onchange="calcularValorParcela()">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Valor da Parcela (R$)</label>
+                                <input type="number" class="form-control" id="vale-valor-parcela" step="0.01" min="0" readonly>
+                            </div>
+                        </div>
                     </form>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
                     <button type="button" class="btn btn-primary" onclick="salvarVale()">Salvar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Detalhes do Vale -->
+    <div class="modal fade" id="modalDetalhesVale" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Detalhes do Vale</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="detalhes-vale-content"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
                 </div>
             </div>
         </div>
