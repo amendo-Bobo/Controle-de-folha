@@ -605,7 +605,7 @@ async function salvarVale() {
                 tipo_vale: tipoVale,
                 num_parcelas: numParcelas,
                 valor_parcela: valorParcela,
-                parcela_atual: 1,
+                parcela_atual: tipoVale === 'parcelado' ? 0 : 1,
                 quinzena_inicial: quinzena
             })
         });
