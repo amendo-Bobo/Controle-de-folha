@@ -897,6 +897,93 @@ app.put('/api/vales/:id/concluir', async (req, res) => {
     }
 });
 
+// PUT adiantar parcela do vale
+app.put('/api/vales/:id/adiantar-parcela', async (req, res) => {
+    console.log('=== PUT /api/vales/:id/adiantar-parcela ===');
+    const { id } = req.params;
+    
+    try {
+        if (useSupabase) {
+            // Usar PostgreSQL direto
+            const { Client } = require('pg');
+            
+            try {
+                const poolerUrl = databaseUrl.replace(
+                    'postgresql://postgres:tiVW2cmpeVStByLm@db.yuwddqxdnyjvilbmjooc.supabase.co:5432/postgres',
+                    'postgresql://postgres.yuwddqxdnyjvilbmjooc:tiVW2cmpeVStByLm@aws-1-sa-east-1.pooler.supabase.com:6543/postgres'
+                );
+                
+                const client = new Client({
+                    connectionString: poolerUrl,
+                    ssl: { rejectUnauthorized: false },
+                    connectionTimeoutMillis: 10000,
+                    query_timeout: 10000
+                });
+                
+                await client.connect();
+                
+                const result = await client.query(
+                    `UPDATE vales SET parcela_atual = parcela_atual + 1, 
+                     status = CASE WHEN parcela_atual + 1 >= num_parcelas THEN 'concluido' ELSE 'pendente' END 
+                     WHERE id = $1 RETURNING *`,
+                    [id]
+                );
+                
+                if (result.rows.length === 0) {
+                    await client.end();
+                    return res.status(404).json({ error: 'Vale não encontrado' });
+                }
+                
+                console.log('Parcela adiantada:', result.rows[0]);
+                await client.end();
+                res.json(result.rows[0]);
+                
+            } catch (pgError) {
+                console.log('PostgreSQL falhou, usando SQLite fallback:', pgError.message);
+                
+                // Fallback para SQLite
+                db.run(`UPDATE vales SET parcela_atual = parcela_atual + 1, 
+                        status = CASE WHEN parcela_atual + 1 >= num_parcelas THEN 'concluido' ELSE 'pendente' END 
+                        WHERE id = ?`, [id], function(err) {
+                    if (err) {
+                        console.error('Erro ao adiantar parcela no SQLite:', err);
+                        return res.status(500).json({ error: err.message });
+                    }
+                    
+                    if (this.changes === 0) {
+                        console.error('Vale não encontrado:', id);
+                        return res.status(404).json({ error: 'Vale não encontrado' });
+                    }
+                    
+                    console.log('Parcela adiantada com ID:', id);
+                    res.json({ message: 'Parcela adiantada com sucesso' });
+                });
+            }
+        } else {
+            // Usar SQLite local
+            db.run(`UPDATE vales SET parcela_atual = parcela_atual + 1, 
+                    status = CASE WHEN parcela_atual + 1 >= num_parcelas THEN 'concluido' ELSE 'pendente' END 
+                    WHERE id = ?`, [id], function(err) {
+                if (err) {
+                    console.error('Erro ao adiantar parcela no SQLite:', err);
+                    return res.status(500).json({ error: err.message });
+                }
+                
+                if (this.changes === 0) {
+                    console.error('Vale não encontrado:', id);
+                    return res.status(404).json({ error: 'Vale não encontrado' });
+                }
+                
+                console.log('Parcela adiantada com ID:', id);
+                res.json({ message: 'Parcela adiantada com sucesso' });
+            });
+        }
+    } catch (error) {
+        console.error('Erro geral:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // PUT editar vale
 app.put('/api/vales/:id', async (req, res) => {
     console.log('=== PUT /api/vales/:id ===');

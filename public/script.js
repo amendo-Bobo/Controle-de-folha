@@ -736,7 +736,12 @@ function verDetalhesVale(id) {
                     <div class="d-flex gap-2">
                         ${vale.status === 'pendente' ? `
                             <button class="btn btn-success btn-sm" onclick="concluirVale(${vale.id}); return false;">
-                                <i class="bi bi-check-circle"></i> Concluir Vale
+                                <i class="bi bi-check-circle"></i> Adiantar Vale
+                            </button>
+                        ` : ''}
+                        ${vale.tipo_vale === 'parcelado' && vale.status === 'pendente' && vale.parcela_atual < vale.num_parcelas ? `
+                            <button class="btn btn-info btn-sm" onclick="adiantarParcelaVale(${vale.id}); return false;">
+                                <i class="bi bi-arrow-right-circle"></i> Adiantar Parcela
                             </button>
                         ` : ''}
                         <button class="btn btn-primary btn-sm" onclick="editarVale(${vale.id}); return false;">
@@ -758,13 +763,13 @@ function verDetalhesVale(id) {
 }
 
 function concluirVale(id) {
-    if (confirm('Tem certeza que deseja concluir este vale manualmente?')) {
+    if (confirm('Tem certeza que deseja adiantar este vale manualmente?')) {
         fetch(`${API_BASE}/api/vales/${id}/concluir`, {
             method: 'PUT'
         })
         .then(response => response.json())
         .then(data => {
-            alert('Vale concluído com sucesso!');
+            alert('Vale adiantado com sucesso!');
             carregarVales();
             // Fechar modal
             const modal = bootstrap.Modal.getInstance(document.getElementById('modalDetalhesVale'));
@@ -775,6 +780,28 @@ function concluirVale(id) {
         .catch(error => {
             console.error('Erro ao concluir vale:', error);
             alert('Erro ao concluir vale!');
+        });
+    }
+}
+
+function adiantarParcelaVale(id) {
+    if (confirm('Tem certeza que deseja adiantar uma parcela deste vale?')) {
+        fetch(`${API_BASE}/api/vales/${id}/adiantar-parcela`, {
+            method: 'PUT'
+        })
+        .then(response => response.json())
+        .then(data => {
+            alert('Parcela adiantada com sucesso!');
+            carregarVales();
+            // Fechar modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('modalDetalhesVale'));
+            if (modal) {
+                modal.hide();
+            }
+        })
+        .catch(error => {
+            console.error('Erro ao adiantar parcela:', error);
+            alert('Erro ao adiantar parcela!');
         });
     }
 }
