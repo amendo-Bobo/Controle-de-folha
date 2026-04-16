@@ -763,6 +763,71 @@
         </div>
     </div>
 
+    <!-- Modal Editar Vale -->
+    <div class="modal fade" id="modalEditarVale" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Editar Vale</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="form-editar-vale">
+                        <input type="hidden" id="editar-vale-id">
+                        <div class="mb-3">
+                            <label class="form-label">Motivo</label>
+                            <input type="text" class="form-control" id="editar-vale-motivo" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Valor Total (R$)</label>
+                            <input type="number" class="form-control" id="editar-vale-valor" step="0.01" min="0" required onchange="recalcularValorParcelaEditar()">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Quinzena</label>
+                            <select class="form-select" id="editar-vale-quinzena" required>
+                                <option value="dia_15">Dia 15 (Primeira Quinzena)</option>
+                                <option value="dia_30">Dia 30 (Segunda Quinzena)</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Mês Referência</label>
+                            <input type="month" class="form-control" id="editar-vale-mes" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Tipo de Vale</label>
+                            <select class="form-select" id="editar-vale-tipo" onchange="toggleCamposParcelamentoEditar()">
+                                <option value="unico">Vale Único</option>
+                                <option value="parcelado">Vale Parcelado</option>
+                            </select>
+                        </div>
+                        <div id="campos-parcelamento-editar" style="display: none;">
+                            <div class="mb-3">
+                                <label class="form-label">Número de Parcelas</label>
+                                <input type="number" class="form-control" id="editar-vale-num-parcelas" min="2" max="12" onchange="recalcularValorParcelaEditar()">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Valor da Parcela (R$)</label>
+                                <input type="number" class="form-control" id="editar-vale-valor-parcela" step="0.01" min="0" readonly>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Parcela Atual</label>
+                                <input type="number" class="form-control" id="editar-vale-parcela-atual" min="1" required>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Observação</label>
+                            <textarea class="form-control" id="editar-vale-observacao" rows="2"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" onclick="salvarEdicaoVale()">Salvar Alterações</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal Produção -->
     <div class="modal fade" id="modalProducao" tabindex="-1">
         <div class="modal-dialog">

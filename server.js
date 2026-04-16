@@ -819,6 +819,182 @@ app.delete('/api/vales/:id', async (req, res) => {
     }
 });
 
+// PUT concluir vale
+app.put('/api/vales/:id/concluir', async (req, res) => {
+    console.log('=== PUT /api/vales/:id/concluir ===');
+    const { id } = req.params;
+    
+    try {
+        if (useSupabase) {
+            // Usar PostgreSQL direto
+            const { Client } = require('pg');
+            
+            try {
+                const poolerUrl = databaseUrl.replace(
+                    'postgresql://postgres:tiVW2cmpeVStByLm@db.yuwddqxdnyjvilbmjooc.supabase.co:5432/postgres',
+                    'postgresql://postgres.yuwddqxdnyjvilbmjooc:tiVW2cmpeVStByLm@aws-1-sa-east-1.pooler.supabase.com:6543/postgres'
+                );
+                
+                const client = new Client({
+                    connectionString: poolerUrl,
+                    ssl: { rejectUnauthorized: false },
+                    connectionTimeoutMillis: 10000,
+                    query_timeout: 10000
+                });
+                
+                await client.connect();
+                
+                const result = await client.query(
+                    'UPDATE vales SET status = $1, parcela_atual = num_parcelas WHERE id = $2 RETURNING *',
+                    ['concluido', id]
+                );
+                
+                if (result.rows.length === 0) {
+                    await client.end();
+                    return res.status(404).json({ error: 'Vale não encontrado' });
+                }
+                
+                console.log('Vale concluído:', result.rows[0]);
+                await client.end();
+                res.json(result.rows[0]);
+                
+            } catch (pgError) {
+                console.log('PostgreSQL falhou, usando SQLite fallback:', pgError.message);
+                
+                // Fallback para SQLite
+                db.run('UPDATE vales SET status = ?, parcela_atual = num_parcelas WHERE id = ?', ['concluido', id], function(err) {
+                    if (err) {
+                        console.error('Erro ao concluir vale no SQLite:', err);
+                        return res.status(500).json({ error: err.message });
+                    }
+                    
+                    if (this.changes === 0) {
+                        console.error('Vale não encontrado:', id);
+                        return res.status(404).json({ error: 'Vale não encontrado' });
+                    }
+                    
+                    console.log('Vale concluído com ID:', id);
+                    res.json({ message: 'Vale concluído com sucesso' });
+                });
+            }
+        } else {
+            // Usar SQLite local
+            db.run('UPDATE vales SET status = ?, parcela_atual = num_parcelas WHERE id = ?', ['concluido', id], function(err) {
+                if (err) {
+                    console.error('Erro ao concluir vale no SQLite:', err);
+                    return res.status(500).json({ error: err.message });
+                }
+                
+                if (this.changes === 0) {
+                    console.error('Vale não encontrado:', id);
+                    return res.status(404).json({ error: 'Vale não encontrado' });
+                }
+                
+                console.log('Vale concluído com ID:', id);
+                res.json({ message: 'Vale concluído com sucesso' });
+            });
+        }
+    } catch (error) {
+        console.error('Erro geral:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// PUT editar vale
+app.put('/api/vales/:id', async (req, res) => {
+    console.log('=== PUT /api/vales/:id ===');
+    const { id } = req.params;
+    const { motivo, valor, quinzena, mes_referencia, tipo_vale, num_parcelas, valor_parcela, parcela_atual, observacao } = req.body;
+    
+    try {
+        if (useSupabase) {
+            // Usar PostgreSQL direto
+            const { Client } = require('pg');
+            
+            try {
+                const poolerUrl = databaseUrl.replace(
+                    'postgresql://postgres:tiVW2cmpeVStByLm@db.yuwddqxdnyjvilbmjooc.supabase.co:5432/postgres',
+                    'postgresql://postgres.yuwddqxdnyjvilbmjooc:tiVW2cmpeVStByLm@aws-1-sa-east-1.pooler.supabase.com:6543/postgres'
+                );
+                
+                const client = new Client({
+                    connectionString: poolerUrl,
+                    ssl: { rejectUnauthorized: false },
+                    connectionTimeoutMillis: 10000,
+                    query_timeout: 10000
+                });
+                
+                await client.connect();
+                
+                const result = await client.query(
+                    `UPDATE vales SET motivo = $1, valor = $2, quinzena = $3, mes_referencia = $4, 
+                     tipo_vale = $5, num_parcelas = $6, valor_parcela = $7, parcela_atual = $8, observacao = $9,
+                     status = CASE WHEN $8 >= $6 THEN 'concluido' ELSE status END
+                     WHERE id = $10 RETURNING *`,
+                    [motivo, valor, quinzena, mes_referencia, tipo_vale, num_parcelas, valor_parcela, parcela_atual, observacao, id]
+                );
+                
+                if (result.rows.length === 0) {
+                    await client.end();
+                    return res.status(404).json({ error: 'Vale não encontrado' });
+                }
+                
+                console.log('Vale atualizado:', result.rows[0]);
+                await client.end();
+                res.json(result.rows[0]);
+                
+            } catch (pgError) {
+                console.log('PostgreSQL falhou, usando SQLite fallback:', pgError.message);
+                
+                // Fallback para SQLite
+                db.run(`UPDATE vales SET motivo = ?, valor = ?, quinzena = ?, mes_referencia = ?, 
+                        tipo_vale = ?, num_parcelas = ?, valor_parcela = ?, parcela_atual = ?, observacao = ?,
+                        status = CASE WHEN ? >= num_parcelas THEN 'concluido' ELSE status END
+                        WHERE id = ?`,
+                    [motivo, valor, quinzena, mes_referencia, tipo_vale, num_parcelas, valor_parcela, parcela_atual, observacao, parcela_atual, id],
+                    function(err) {
+                    if (err) {
+                        console.error('Erro ao atualizar vale no SQLite:', err);
+                        return res.status(500).json({ error: err.message });
+                    }
+                    
+                    if (this.changes === 0) {
+                        console.error('Vale não encontrado:', id);
+                        return res.status(404).json({ error: 'Vale não encontrado' });
+                    }
+                    
+                    console.log('Vale atualizado com ID:', id);
+                    res.json({ message: 'Vale atualizado com sucesso' });
+                });
+            }
+        } else {
+            // Usar SQLite local
+            db.run(`UPDATE vales SET motivo = ?, valor = ?, quinzena = ?, mes_referencia = ?, 
+                    tipo_vale = ?, num_parcelas = ?, valor_parcela = ?, parcela_atual = ?, observacao = ?,
+                    status = CASE WHEN ? >= num_parcelas THEN 'concluido' ELSE status END
+                    WHERE id = ?`,
+                [motivo, valor, quinzena, mes_referencia, tipo_vale, num_parcelas, valor_parcela, parcela_atual, observacao, parcela_atual, id],
+                function(err) {
+                if (err) {
+                    console.error('Erro ao atualizar vale no SQLite:', err);
+                    return res.status(500).json({ error: err.message });
+                }
+                
+                if (this.changes === 0) {
+                    console.error('Vale não encontrado:', id);
+                    return res.status(404).json({ error: 'Vale não encontrado' });
+                }
+                
+                console.log('Vale atualizado com ID:', id);
+                res.json({ message: 'Vale atualizado com sucesso' });
+            });
+        }
+    } catch (error) {
+        console.error('Erro geral:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // GET funcionarios
 app.get('/api/funcionarios', async (req, res) => {
     console.log('=== GET /api/funcionarios chamado ===');

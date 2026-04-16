@@ -547,10 +547,10 @@ async function carregarVales() {
                     </span>
                 </td>
                 <td>
-                    <button class="btn btn-sm btn-info" onclick="verDetalhesVale(${v.id})" title="Ver Detalhes">
+                    <button class="btn btn-sm btn-info" onclick="verDetalhesVale(${v.id}); return false;" title="Ver Detalhes">
                         <i class="bi bi-eye"></i>
                     </button>
-                    <button class="btn btn-sm btn-danger" onclick="deletarVale(${v.id})" title="Excluir">
+                    <button class="btn btn-sm btn-danger" onclick="deletarVale(${v.id}); return false;" title="Excluir">
                         <i class="bi bi-trash"></i>
                     </button>
                 </td>
@@ -562,7 +562,15 @@ async function carregarVales() {
     }
 }
 
+let salvandoVale = false;
+
 async function salvarVale() {
+    if (salvandoVale) {
+        return; // Prevenir clique duplo
+    }
+    
+    salvandoVale = true;
+    
     const idFuncionario = document.getElementById('vale-funcionario').value;
     const motivo = document.getElementById('vale-motivo').value;
     const valor = parseFloat(document.getElementById('vale-valor').value);
@@ -623,6 +631,8 @@ async function salvarVale() {
     } catch (error) {
         console.error('Erro ao salvar vale:', error);
         alert('Erro ao salvar vale!');
+    } finally {
+        salvandoVale = false;
     }
 }
 
@@ -719,6 +729,17 @@ function verDetalhesVale(id) {
                         <hr>
                         <p><strong>Tipo:</strong> Vale Único</p>
                     `}
+                    <hr>
+                    <div class="d-flex gap-2">
+                        ${vale.status === 'pendente' ? `
+                            <button class="btn btn-success btn-sm" onclick="concluirVale(${vale.id}); return false;">
+                                <i class="bi bi-check-circle"></i> Concluir Vale
+                            </button>
+                        ` : ''}
+                        <button class="btn btn-primary btn-sm" onclick="editarVale(${vale.id}); return false;">
+                            <i class="bi bi-pencil"></i> Editar Vale
+                        </button>
+                    </div>
                 `;
                 document.getElementById('detalhes-vale-content').innerHTML = detalhesContent;
                 
@@ -731,6 +752,146 @@ function verDetalhesVale(id) {
             console.error('Erro ao buscar detalhes do vale:', error);
             alert('Erro ao buscar detalhes do vale!');
         });
+}
+
+function concluirVale(id) {
+    if (confirm('Tem certeza que deseja concluir este vale manualmente?')) {
+        fetch(`${API_BASE}/api/vales/${id}/concluir`, {
+            method: 'PUT'
+        })
+        .then(response => response.json())
+        .then(data => {
+            alert('Vale concluído com sucesso!');
+            carregarVales();
+            // Fechar modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('modalDetalhesVale'));
+            if (modal) {
+                modal.hide();
+            }
+        })
+        .catch(error => {
+            console.error('Erro ao concluir vale:', error);
+            alert('Erro ao concluir vale!');
+        });
+    }
+}
+
+function editarVale(id) {
+    // Buscar vales para encontrar o vale pelo ID
+    fetch(`${API_BASE}/api/vales`)
+        .then(response => response.json())
+        .then(vales => {
+            const vale = vales.find(v => v.id === id);
+            if (vale) {
+                // Preencher formulário de edição
+                document.getElementById('editar-vale-id').value = vale.id;
+                document.getElementById('editar-vale-motivo').value = vale.motivo;
+                document.getElementById('editar-vale-valor').value = vale.valor;
+                document.getElementById('editar-vale-quinzena').value = vale.quinzena;
+                document.getElementById('editar-vale-mes').value = vale.mes_referencia;
+                document.getElementById('editar-vale-tipo').value = vale.tipo_vale || 'unico';
+                document.getElementById('editar-vale-num-parcelas').value = vale.num_parcelas || 1;
+                document.getElementById('editar-vale-valor-parcela').value = vale.valor_parcela || (vale.valor / (vale.num_parcelas || 1));
+                document.getElementById('editar-vale-parcela-atual').value = vale.parcela_atual || 1;
+                document.getElementById('editar-vale-observacao').value = vale.observacao || '';
+                
+                // Mostrar campos de parcelamento se for parcelado
+                toggleCamposParcelamentoEditar();
+                
+                // Fechar modal de detalhes
+                const modalDetalhes = bootstrap.Modal.getInstance(document.getElementById('modalDetalhesVale'));
+                if (modalDetalhes) {
+                    modalDetalhes.hide();
+                }
+                
+                // Abrir modal de edição
+                const modalEditar = new bootstrap.Modal(document.getElementById('modalEditarVale'));
+                modalEditar.show();
+            }
+        })
+        .catch(error => {
+            console.error('Erro ao buscar vale para edição:', error);
+            alert('Erro ao buscar vale para edição!');
+        });
+}
+
+function toggleCamposParcelamentoEditar() {
+    const tipoVale = document.getElementById('editar-vale-tipo').value;
+    const camposParcelamento = document.getElementById('campos-parcelamento-editar');
+    
+    if (tipoVale === 'parcelado') {
+        camposParcelamento.style.display = 'block';
+    } else {
+        camposParcelamento.style.display = 'none';
+    }
+}
+
+function recalcularValorParcelaEditar() {
+    const valorTotal = parseFloat(document.getElementById('editar-vale-valor').value) || 0;
+    const numParcelas = parseInt(document.getElementById('editar-vale-num-parcelas').value) || 1;
+    
+    if (numParcelas > 0 && valorTotal > 0) {
+        const valorParcela = valorTotal / numParcelas;
+        document.getElementById('editar-vale-valor-parcela').value = valorParcela.toFixed(2);
+    }
+}
+
+function salvarEdicaoVale() {
+    const id = document.getElementById('editar-vale-id').value;
+    const motivo = document.getElementById('editar-vale-motivo').value;
+    const valor = parseFloat(document.getElementById('editar-vale-valor').value);
+    const quinzena = document.getElementById('editar-vale-quinzena').value;
+    const mesReferencia = document.getElementById('editar-vale-mes').value;
+    const tipoVale = document.getElementById('editar-vale-tipo').value;
+    const numParcelas = parseInt(document.getElementById('editar-vale-num-parcelas').value) || 1;
+    const valorParcela = parseFloat(document.getElementById('editar-vale-valor-parcela').value) || valor;
+    const parcelaAtual = parseInt(document.getElementById('editar-vale-parcela-atual').value) || 1;
+    const observacao = document.getElementById('editar-vale-observacao').value;
+    
+    if (!motivo || !valor || !quinzena || !mesReferencia) {
+        alert('Preencha todos os campos obrigatórios!');
+        return;
+    }
+    
+    if (tipoVale === 'parcelado' && numParcelas < 2) {
+        alert('Para vale parcelado, o número de parcelas deve ser pelo menos 2!');
+        return;
+    }
+    
+    if (parcelaAtual > numParcelas) {
+        alert('A parcela atual não pode ser maior que o número de parcelas!');
+        return;
+    }
+    
+    fetch(`${API_BASE}/api/vales/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            motivo,
+            valor,
+            quinzena,
+            mes_referencia: mesReferencia,
+            tipo_vale: tipoVale,
+            num_parcelas: numParcelas,
+            valor_parcela: valorParcela,
+            parcela_atual: parcelaAtual,
+            observacao
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        alert('Vale atualizado com sucesso!');
+        carregarVales();
+        // Fechar modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('modalEditarVale'));
+        if (modal) {
+            modal.hide();
+        }
+    })
+    .catch(error => {
+        console.error('Erro ao atualizar vale:', error);
+        alert('Erro ao atualizar vale!');
+    });
 }
 
 async function carregarFuncionariosVales() {
