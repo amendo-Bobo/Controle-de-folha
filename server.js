@@ -2735,10 +2735,14 @@ app.post('/api/folha-pagamento-quinzenal', async (req, res) => {
                         [func.id, mes_referencia]
                     );
                     
+                    console.log('Vales encontrados para funcionário', func.id, ':', valesResult.rows.length, 'vales');
+                    console.log('Vales:', valesResult.rows);
+                    
                     let totalVales = 0;
                     
                     // Processar cada vale individualmente
                     for (const vale of valesResult.rows) {
+                        console.log('Processando vale:', vale.id, 'tipo:', vale.tipo_vale, 'valor:', vale.valor, 'parcela_atual:', vale.parcela_atual, 'num_parcelas:', vale.num_parcelas);
                         if (vale.tipo_vale === 'unico') {
                             // Vale único: descontar apenas se for da quinzena correta
                             if (vale.quinzena === quinzena) {
@@ -2747,19 +2751,26 @@ app.post('/api/folha-pagamento-quinzenal', async (req, res) => {
                                     "UPDATE vales SET status = 'concluido' WHERE id = $1",
                                     [vale.id]
                                 );
+                                console.log('Vale único descontado:', vale.valor);
                             }
                         } else if (vale.tipo_vale === 'parcelado') {
                             // Vale parcelado: descontar apenas valor da parcela em cada quinzena
                             // Verificar se ainda há parcelas a pagar
                             if (vale.parcela_atual < vale.num_parcelas) {
-                                totalVales += (vale.valor_parcela || vale.valor / vale.num_parcelas);
+                                const valorParcela = vale.valor_parcela || vale.valor / vale.num_parcelas;
+                                totalVales += valorParcela;
                                 await client.query(
                                     "UPDATE vales SET parcela_atual = parcela_atual + 1, status = CASE WHEN parcela_atual + 1 >= num_parcelas THEN 'concluido' ELSE 'pendente' END WHERE id = $1",
                                     [vale.id]
                                 );
+                                console.log('Vale parcelado descontado:', valorParcela, 'nova parcela_atual:', vale.parcela_atual + 1);
+                            } else {
+                                console.log('Vale parcelado já concluído, não descontando');
                             }
                         }
                     }
+                    
+                    console.log('Total de vales descontado para funcionário', func.id, ':', totalVales);
                     
                     // Calcular total (salário + comissões - descontos)
                     const total = salarioBase + comissoes - totalVales - (outros_descontos || 0);
