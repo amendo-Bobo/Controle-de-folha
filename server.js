@@ -201,35 +201,32 @@ async function createSupabaseTables() {
             `);
             console.log('Tabela folha_pagamento recriada com estrutura correta');
             
-            // Criar tabela vales
+            // Criar tabela vales se não existir
             try {
-                await client.query(`DROP TABLE IF EXISTS vales CASCADE`);
-                console.log('Tabela vales antiga removida');
-            } catch (dropError) {
-                console.log('Tabela vales não existe ou erro ao remover:', dropError.message);
+                await client.query(`
+                    CREATE TABLE IF NOT EXISTS vales (
+                        id BIGSERIAL PRIMARY KEY,
+                        id_funcionario BIGINT NOT NULL REFERENCES funcionarios(id),
+                        motivo TEXT NOT NULL,
+                        valor REAL NOT NULL,
+                        observacao TEXT,
+                        quinzena TEXT NOT NULL,
+                        mes_referencia TEXT NOT NULL,
+                        data_lancamento DATE DEFAULT CURRENT_DATE NOT NULL,
+                        status TEXT NOT NULL DEFAULT 'pendente',
+                        tipo_vale TEXT DEFAULT 'unico',
+                        num_parcelas INTEGER DEFAULT 1,
+                        valor_parcela REAL,
+                        parcela_atual INTEGER DEFAULT 1,
+                        quinzena_inicial TEXT,
+                        created_at TIMESTAMP DEFAULT NOW(),
+                        updated_at TIMESTAMP DEFAULT NOW()
+                    )
+                `);
+                console.log('Tabela vales criada ou já existe');
+            } catch (createError) {
+                console.log('Erro ao criar tabela vales:', createError.message);
             }
-            
-            await client.query(`
-                CREATE TABLE vales (
-                    id BIGSERIAL PRIMARY KEY,
-                    id_funcionario BIGINT NOT NULL REFERENCES funcionarios(id),
-                    motivo TEXT NOT NULL,
-                    valor REAL NOT NULL,
-                    observacao TEXT,
-                    quinzena TEXT NOT NULL,
-                    mes_referencia TEXT NOT NULL,
-                    data_lancamento DATE DEFAULT CURRENT_DATE NOT NULL,
-                    status TEXT NOT NULL DEFAULT 'pendente',
-                    tipo_vale TEXT DEFAULT 'unico',
-                    num_parcelas INTEGER DEFAULT 1,
-                    valor_parcela REAL,
-                    parcela_atual INTEGER DEFAULT 1,
-                    quinzena_inicial TEXT,
-                    created_at TIMESTAMP DEFAULT NOW(),
-                    updated_at TIMESTAMP DEFAULT NOW()
-                )
-            `);
-            console.log('Tabela vales criada com sucesso');
             
             // Adicionar colunas de descontos e quinzena se não existirem
             try {
@@ -2643,10 +2640,12 @@ app.post('/api/folha-pagamento-quinzenal', async (req, res) => {
                         }
                     }
                     
-                    // Buscar vales pendentes do funcionário para o mês e quinzena
+                    // Buscar vales pendentes do funcionário para o mês
+                    // Para vales únicos: buscar apenas da quinzena específica
+                    // Para vales parcelados: buscar de qualquer quinzena do mês que ainda esteja pendente
                     const valesResult = await client.query(
-                        "SELECT * FROM vales WHERE id_funcionario = $1 AND mes_referencia = $2 AND quinzena = $3 AND status = 'pendente'",
-                        [func.id, mes_referencia, quinzena]
+                        "SELECT * FROM vales WHERE id_funcionario = $1 AND mes_referencia = $2 AND status = 'pendente'",
+                        [func.id, mes_referencia]
                     );
                     
                     let totalVales = 0;
@@ -2654,19 +2653,24 @@ app.post('/api/folha-pagamento-quinzenal', async (req, res) => {
                     // Processar cada vale individualmente
                     for (const vale of valesResult.rows) {
                         if (vale.tipo_vale === 'unico') {
-                            // Vale único: descontar valor total e mudar status para concluído
-                            totalVales += vale.valor;
-                            await client.query(
-                                "UPDATE vales SET status = 'concluido' WHERE id = $1",
-                                [vale.id]
-                            );
+                            // Vale único: descontar apenas se for da quinzena correta
+                            if (vale.quinzena === quinzena) {
+                                totalVales += vale.valor;
+                                await client.query(
+                                    "UPDATE vales SET status = 'concluido' WHERE id = $1",
+                                    [vale.id]
+                                );
+                            }
                         } else if (vale.tipo_vale === 'parcelado') {
-                            // Vale parcelado: descontar apenas valor da parcela
-                            totalVales += (vale.valor_parcela || vale.valor / vale.num_parcelas);
-                            await client.query(
-                                "UPDATE vales SET parcela_atual = parcela_atual + 1, status = CASE WHEN parcela_atual + 1 >= num_parcelas THEN 'concluido' ELSE 'pendente' END WHERE id = $1",
-                                [vale.id]
-                            );
+                            // Vale parcelado: descontar apenas valor da parcela em cada quinzena
+                            // Verificar se ainda há parcelas a pagar
+                            if (vale.parcela_atual < vale.num_parcelas) {
+                                totalVales += (vale.valor_parcela || vale.valor / vale.num_parcelas);
+                                await client.query(
+                                    "UPDATE vales SET parcela_atual = parcela_atual + 1, status = CASE WHEN parcela_atual + 1 >= num_parcelas THEN 'concluido' ELSE 'pendente' END WHERE id = $1",
+                                    [vale.id]
+                                );
+                            }
                         }
                     }
                     
@@ -2732,21 +2736,28 @@ app.post('/api/folha-pagamento-quinzenal', async (req, res) => {
                         }
                     }
                     
-                    // Buscar vales pendentes do funcionário para o mês e quinzena
-                    db.all("SELECT * FROM vales WHERE id_funcionario = ? AND mes_referencia = ? AND quinzena = ? AND status = 'pendente'", [func.id, mes_referencia, quinzena], (valesErr, valesRows) => {
+                    // Buscar vales pendentes do funcionário para o mês
+                    // Para vales únicos: buscar apenas da quinzena específica
+                    // Para vales parcelados: buscar de qualquer quinzena do mês que ainda esteja pendente
+                    db.all("SELECT * FROM vales WHERE id_funcionario = ? AND mes_referencia = ? AND status = 'pendente'", [func.id, mes_referencia], (valesErr, valesRows) => {
                         if (!valesErr && valesRows && valesRows.length > 0) {
                             let totalVales = 0;
                             
                             // Processar cada vale individualmente
                             valesRows.forEach(vale => {
                                 if (vale.tipo_vale === 'unico') {
-                                    // Vale único: descontar valor total e mudar status para concluído
-                                    totalVales += vale.valor;
-                                    db.run("UPDATE vales SET status = 'concluido' WHERE id = ?", [vale.id]);
+                                    // Vale único: descontar apenas se for da quinzena correta
+                                    if (vale.quinzena === quinzena) {
+                                        totalVales += vale.valor;
+                                        db.run("UPDATE vales SET status = 'concluido' WHERE id = ?", [vale.id]);
+                                    }
                                 } else if (vale.tipo_vale === 'parcelado') {
-                                    // Vale parcelado: descontar apenas valor da parcela
-                                    totalVales += (vale.valor_parcela || vale.valor / vale.num_parcelas);
-                                    db.run("UPDATE vales SET parcela_atual = parcela_atual + 1, status = CASE WHEN parcela_atual + 1 >= num_parcelas THEN 'concluido' ELSE 'pendente' END WHERE id = ?", [vale.id]);
+                                    // Vale parcelado: descontar apenas valor da parcela em cada quinzena
+                                    // Verificar se ainda há parcelas a pagar
+                                    if (vale.parcela_atual < vale.num_parcelas) {
+                                        totalVales += (vale.valor_parcela || vale.valor / vale.num_parcelas);
+                                        db.run("UPDATE vales SET parcela_atual = parcela_atual + 1, status = CASE WHEN parcela_atual + 1 >= num_parcelas THEN 'concluido' ELSE 'pendente' END WHERE id = ?", [vale.id]);
+                                    }
                                 }
                             });
                             
@@ -2861,11 +2872,14 @@ app.post('/api/folha-pagamento', async (req, res) => {
                         );
                     } else if (vale.tipo_vale === 'parcelado') {
                         // Vale parcelado: descontar apenas valor da parcela
-                        totalVales += (vale.valor_parcela || vale.valor / vale.num_parcelas);
-                        await client.query(
-                            "UPDATE vales SET parcela_atual = parcela_atual + 1, status = CASE WHEN parcela_atual + 1 >= num_parcelas THEN 'concluido' ELSE 'pendente' END WHERE id = $1",
-                            [vale.id]
-                        );
+                        // Verificar se ainda há parcelas a pagar
+                        if (vale.parcela_atual < vale.num_parcelas) {
+                            totalVales += (vale.valor_parcela || vale.valor / vale.num_parcelas);
+                            await client.query(
+                                "UPDATE vales SET parcela_atual = parcela_atual + 1, status = CASE WHEN parcela_atual + 1 >= num_parcelas THEN 'concluido' ELSE 'pendente' END WHERE id = $1",
+                                [vale.id]
+                            );
+                        }
                     }
                 }
                 
@@ -2928,8 +2942,11 @@ app.post('/api/folha-pagamento', async (req, res) => {
                                     db.run("UPDATE vales SET status = 'concluido' WHERE id = ?", [vale.id]);
                                 } else if (vale.tipo_vale === 'parcelado') {
                                     // Vale parcelado: descontar apenas valor da parcela
-                                    totalVales += (vale.valor_parcela || vale.valor / vale.num_parcelas);
-                                    db.run("UPDATE vales SET parcela_atual = parcela_atual + 1, status = CASE WHEN parcela_atual + 1 >= num_parcelas THEN 'concluido' ELSE 'pendente' END WHERE id = ?", [vale.id]);
+                                    // Verificar se ainda há parcelas a pagar
+                                    if (vale.parcela_atual < vale.num_parcelas) {
+                                        totalVales += (vale.valor_parcela || vale.valor / vale.num_parcelas);
+                                        db.run("UPDATE vales SET parcela_atual = parcela_atual + 1, status = CASE WHEN parcela_atual + 1 >= num_parcelas THEN 'concluido' ELSE 'pendente' END WHERE id = ?", [vale.id]);
+                                    }
                                 }
                             });
                         }
