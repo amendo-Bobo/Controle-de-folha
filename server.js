@@ -3409,14 +3409,50 @@ app.post('/api/gerar-folha/:mes', async (req, res) => {
                         }
                     }
                     
-                    // Buscar vales pendentes do funcionário para o mês e quinzena
+                    // Buscar vales pendentes do funcionário para o mês (independente da quinzena)
+                    // Para vales únicos: buscar apenas da quinzena específica
+                    // Para vales parcelados: buscar de qualquer quinzena do mês que ainda esteja pendente
                     const valesResult = await client.query(
-                        "SELECT COALESCE(SUM(valor), 0) as total FROM vales WHERE id_funcionario = $1 AND mes_referencia = $2 AND quinzena = $3 AND status = 'pendente'",
-                        [func.id, mes, quinzena]
+                        "SELECT * FROM vales WHERE id_funcionario = $1 AND mes_referencia = $2 AND status = 'pendente'",
+                        [func.id, mes]
                     );
                     
-                    const totalVales = valesResult.rows[0]?.total || 0;
-                    console.log('Vales para', func.nome, ':', totalVales);
+                    console.log('Vales encontrados para funcionário', func.id, ':', valesResult.rows.length, 'vales');
+                    console.log('Vales:', valesResult.rows);
+                    
+                    let totalVales = 0;
+                    
+                    // Processar cada vale individualmente
+                    for (const vale of valesResult.rows) {
+                        console.log('Processando vale:', vale.id, 'tipo:', vale.tipo_vale, 'valor:', vale.valor, 'parcela_atual:', vale.parcela_atual, 'num_parcelas:', vale.num_parcelas);
+                        if (vale.tipo_vale === 'unico') {
+                            // Vale único: descontar apenas se for da quinzena correta
+                            if (vale.quinzena === quinzena) {
+                                totalVales += vale.valor;
+                                await client.query(
+                                    "UPDATE vales SET status = 'concluido' WHERE id = $1",
+                                    [vale.id]
+                                );
+                                console.log('Vale único descontado:', vale.valor);
+                            }
+                        } else if (vale.tipo_vale === 'parcelado') {
+                            // Vale parcelado: descontar apenas valor da parcela em cada quinzena
+                            // Verificar se ainda há parcelas a pagar
+                            if (vale.parcela_atual < vale.num_parcelas) {
+                                const valorParcela = vale.valor_parcela || vale.valor / vale.num_parcelas;
+                                totalVales += valorParcela;
+                                await client.query(
+                                    "UPDATE vales SET parcela_atual = parcela_atual + 1, status = CASE WHEN parcela_atual + 1 >= num_parcelas THEN 'concluido' ELSE 'pendente' END WHERE id = $1",
+                                    [vale.id]
+                                );
+                                console.log('Vale parcelado descontado:', valorParcela, 'nova parcela_atual:', vale.parcela_atual + 1);
+                            } else {
+                                console.log('Vale parcelado já concluído, não descontando');
+                            }
+                        }
+                    }
+                    
+                    console.log('Total de vales descontado para funcionário', func.id, ':', totalVales);
                     
                     const total = salarioBase + comissoes + bonus - totalVales;
                     
