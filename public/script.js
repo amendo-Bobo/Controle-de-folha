@@ -680,11 +680,14 @@ function calcularValorParcela() {
 }
 
 function verDetalhesVale(id) {
+    console.log('=== verDetalhesVale chamado com ID:', id);
     // Buscar vales para encontrar o vale pelo ID
     fetch(`${API_BASE}/api/vales`)
         .then(response => response.json())
         .then(vales => {
+            console.log('Vales encontrados:', vales);
             const vale = vales.find(v => v.id === id);
+            console.log('Vale encontrado:', vale);
             if (vale) {
                 const detalhesContent = `
                     <div class="row">
