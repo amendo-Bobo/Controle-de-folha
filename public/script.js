@@ -3342,6 +3342,9 @@ async function verDetalhesFolhaAgrupada(mes, quinzena) {
                             </div>
                         </div>
                         <div class="modal-footer">
+                            <button type="button" class="btn btn-danger me-auto" onclick="excluirFolhaHistorico('${mes}', '${quinzena}')">
+                                <i class="bi bi-trash"></i> Excluir Folha
+                            </button>
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
                         </div>
                     </div>
@@ -3370,6 +3373,52 @@ async function verDetalhesFolhaAgrupada(mes, quinzena) {
     } catch (error) {
         console.error('Erro ao carregar detalhes da folha:', error);
         alert('Erro ao carregar detalhes da folha!');
+    }
+}
+
+// Função para excluir folha do histórico
+async function excluirFolhaHistorico(mes, quinzena) {
+    console.log('=== EXCLUIR FOLHA HISTÓRICO ===', mes, quinzena);
+    
+    const confirmacao = confirm(
+        `ATENÇÃO: Esta ação irá APAGAR permanentemente a folha de pagamento!\n\n` +
+        `Mês: ${formatarMes(mes)}\n` +
+        `Quinzena: ${quinzena === 'dia_15' ? 'Dia 15' : 'Dia 30'}\n\n` +
+        `Esta ação é IRREVERSÍVEL!\n\n` +
+        `Deseja continuar?`
+    );
+    
+    if (!confirmacao) {
+        return;
+    }
+    
+    try {
+        let url = `${API_BASE}/api/folha-pagamento/${mes}`;
+        if (quinzena) {
+            url += `?quinzena=${quinzena}`;
+        }
+        
+        const response = await fetch(url, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            alert('Folha excluída com sucesso!');
+            
+            // Fechar modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('modalDetalhesFolha'));
+            if (modal) {
+                modal.hide();
+            }
+            
+            // Recarregar histórico
+            carregarHistoricoFolhas();
+        } else {
+            alert('Erro ao excluir folha!');
+        }
+    } catch (error) {
+        console.error('Erro ao excluir folha:', error);
+        alert('Erro ao excluir folha!');
     }
 }
 
