@@ -1391,7 +1391,7 @@ async function carregarFolhaPagamento() {
         
         // Tabela de Vendedoras
         document.getElementById('tabela-folha-vendedoras').innerHTML = vendedoras.map(f => {
-            totalVendedoras += f.total;
+            totalVendedoras += f.total > 0 ? f.total : 0;
             
             // Criar detalhamento das comissões
             let detalheComissoes = '';
@@ -1435,7 +1435,7 @@ async function carregarFolhaPagamento() {
         
         // Tabela de Produção
         document.getElementById('tabela-folha-producao').innerHTML = producao.map(f => {
-            totalProducao += f.total;
+            totalProducao += f.total > 0 ? f.total : 0;
             return `
                 <tr>
                     <td>${f.nome_funcionario}</td>
@@ -1453,7 +1453,7 @@ async function carregarFolhaPagamento() {
         
         // Tabela de Administrativo
         document.getElementById('tabela-folha-administrativo').innerHTML = administrativo.map(f => {
-            totalAdministrativo += f.total;
+            totalAdministrativo += f.total > 0 ? f.total : 0;
             return `
                 <tr>
                     <td>${f.nome_funcionario}</td>
@@ -2190,7 +2190,7 @@ async function exportarXML() {
             xml += `      <bonus>${funcionario.bonus.toFixed(2)}</bonus>\n`;
             xml += `      <total>${funcionario.total.toFixed(2)}</total>\n`;
             xml += `    </funcionario>\n`;
-            totalGeral += funcionario.total;
+            totalGeral += funcionario.total > 0 ? funcionario.total : 0;
         });
         
         xml += `  </funcionarios>\n`;
@@ -3081,7 +3081,7 @@ async function carregarHistoricoFolhas() {
                 };
             }
             folhasAgrupadas[chave].funcionarios.push(folha);
-            folhasAgrupadas[chave].total_geral += parseFloat(folha.total);
+            folhasAgrupadas[chave].total_geral += parseFloat(folha.total) > 0 ? parseFloat(folha.total) : 0;
         });
         
         // Converter para array e ordenar por data de geração (mais recente primeiro)
