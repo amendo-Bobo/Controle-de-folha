@@ -1156,7 +1156,7 @@ async function apagarFolhaExistente() {
         const totalRegistros = folhaExistente.length;
         const totalVendedoras = folhaExistente.filter(f => f.tipo === 'vendedora').length;
         const totalProducao = folhaExistente.filter(f => f.tipo === 'producao').length;
-        const totalGeral = folhaExistente.reduce((sum, f) => sum + f.total, 0);
+        const totalGeral = folhaExistente.reduce((sum, f) => sum + (f.total > 0 ? f.total : 0), 0);
         
         const confirmacao = confirm(
             `ATENÇÃO: Esta ação irá APAGAR permanentemente a folha de pagamento!\n\n` +
@@ -1267,7 +1267,7 @@ async function gerarFolhaPagamento() {
             const totalVendedoras = folhaExistente.filter(f => f.tipo === 'vendedora').length;
             const totalProducao = folhaExistente.filter(f => f.tipo === 'producao').length;
             const totalAdministrativo = folhaExistente.filter(f => f.tipo === 'administrativo').length;
-            const totalGeral = folhaExistente.reduce((sum, f) => sum + f.total, 0);
+            const totalGeral = folhaExistente.reduce((sum, f) => sum + (f.total > 0 ? f.total : 0), 0);
             
             const confirmacao = confirm(
                 `ATENÇÃO: Já existe folha de pagamento para ${formatarMes(mes)} - ${quinzena === 'dia_15' ? 'Dia 15' : quinzena === 'dia_30' ? 'Dia 30' : 'Mensal'}!\n\n` +
@@ -2139,7 +2139,7 @@ async function exportarPDF() {
         doc.line(marginLeft, yPosition, marginLeft + usableWidth, yPosition);
         yPosition += 7;
         doc.setFontSize(12);
-        const totalGeral = folha.reduce((sum, f) => sum + f.total, 0);
+        const totalGeral = folha.reduce((sum, f) => sum + (f.total > 0 ? f.total : 0), 0);
         doc.text(`TOTAL GERAL: R$ ${totalGeral.toFixed(2)}`, pageWidth / 2, yPosition, { align: 'center' });
         
         // Salvar PDF
@@ -3335,7 +3335,7 @@ async function verDetalhesFolhaAgrupada(mes, quinzena) {
                                     <tfoot>
                                         <tr>
                                             <td colspan="6" class="text-end"><strong>TOTAL GERAL:</strong></td>
-                                            <td><strong>R$ ${folhas.reduce((sum, f) => sum + parseFloat(f.total), 0).toFixed(2)}</strong></td>
+                                            <td><strong>R$ ${folhas.reduce((sum, f) => sum + (parseFloat(f.total) > 0 ? parseFloat(f.total) : 0), 0).toFixed(2)}</strong></td>
                                         </tr>
                                     </tfoot>
                                 </table>
