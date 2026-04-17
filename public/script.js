@@ -172,6 +172,10 @@ function setupNavigation() {
                 case 'folha-pagamento':
                     carregarFolhaPagamento();
                     break;
+                case 'historico-folhas':
+                    carregarFiltrosHistorico();
+                    carregarHistoricoFolhas();
+                    break;
                 case 'holerite':
                     carregarFuncionariosHolerite();
                     break;
@@ -3037,5 +3041,217 @@ async function gerarPDFHolerite(funcionario, folha, mes, totalMaquinas = 0) {
     doc.save(`holerite-${funcionario.nome.replace(/\s+/g, '-')}-${mes}.pdf`);
     
     console.log('PDF Holerite gerado com sucesso!');
+}
+
+// Função para carregar histórico de folhas de pagamento
+async function carregarHistoricoFolhas() {
+    console.log('=== CARREGANDO HISTÓRICO DE FOLHAS ===');
+    
+    const mes = document.getElementById('historico-mes').value;
+    const quinzena = document.getElementById('historico-quinzena').value;
+    const funcionario = document.getElementById('historico-funcionario').value;
+    
+    try {
+        let url = `${API_BASE}/api/folha-pagamento`;
+        
+        if (mes) {
+            url += `/${mes}`;
+            if (quinzena) {
+                url += `?quinzena=${quinzena}`;
+            }
+        }
+        
+        console.log('Buscando histórico:', url);
+        
+        const response = await fetch(url);
+        const folhas = await response.json();
+        
+        console.log('Folhas encontradas:', folhas.length);
+        
+        // Filtrar por funcionário se selecionado
+        let folhasFiltradas = folhas;
+        if (funcionario) {
+            folhasFiltradas = folhas.filter(f => f.id_funcionario == funcionario);
+        }
+        
+        console.log('Folhas após filtro:', folhasFiltradas.length);
+        
+        // Ordenar por data de geração (mais recente primeiro)
+        folhasFiltradas.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        
+        const tbody = document.getElementById('tabela-historico-folhas');
+        
+        if (folhasFiltradas.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="10" class="text-center">
+                        <div class="text-center py-4">
+                            <i class="bi bi-inbox fs-1 text-muted"></i>
+                            <p class="text-muted mt-2">Nenhuma folha encontrada</p>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        } else {
+            tbody.innerHTML = folhasFiltradas.map(folha => `
+                <tr>
+                    <td>${new Date(folha.created_at).toLocaleDateString('pt-BR')}</td>
+                    <td>${formatarMes(folha.mes_referencia)}</td>
+                    <td>${folha.quinzena === 'dia_15' ? 'Dia 15' : 'Dia 30'}</td>
+                    <td>${folha.nome_funcionario}</td>
+                    <td>R$ ${parseFloat(folha.salario_base).toFixed(2)}</td>
+                    <td>R$ ${parseFloat(folha.comissoes).toFixed(2)}</td>
+                    <td>R$ ${parseFloat(folha.bonus).toFixed(2)}</td>
+                    <td>R$ ${parseFloat(folha.vales).toFixed(2)}</td>
+                    <td><strong>R$ ${parseFloat(folha.total).toFixed(2)}</strong></td>
+                    <td>
+                        <button class="btn btn-sm btn-info" onclick="verDetalhesFolha(${folha.id})">
+                            <i class="bi bi-eye"></i> Ver Detalhes
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+    } catch (error) {
+        console.error('Erro ao carregar histórico de folhas:', error);
+        alert('Erro ao carregar histórico de folhas!');
+    }
+}
+
+// Função para formatar mês (YYYY-MM para MM/YYYY)
+function formatarMes(mes) {
+    const [ano, mesNum] = mes.split('-');
+    return `${mesNum}/${ano}`;
+}
+
+// Função para ver detalhes de uma folha
+async function verDetalhesFolha(id) {
+    console.log('=== VER DETALHES DA FOLHA ===', id);
+    
+    try {
+        // Buscar todas as folhas e encontrar a correta
+        const response = await fetch(`${API_BASE}/api/folha-pagamento`);
+        const folhas = await response.json();
+        
+        const folha = folhas.find(f => f.id == id);
+        
+        if (!folha) {
+            alert('Folha não encontrada!');
+            return;
+        }
+        
+        // Criar modal de detalhes
+        const modalHtml = `
+            <div class="modal fade" id="modalDetalhesFolha" tabindex="-1">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Detalhes da Folha de Pagamento</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p><strong>Funcionário:</strong> ${folha.nome_funcionario}</p>
+                                    <p><strong>Mês Referência:</strong> ${formatarMes(folha.mes_referencia)}</p>
+                                    <p><strong>Quinzena:</strong> ${folha.quinzena === 'dia_15' ? 'Dia 15' : 'Dia 30'}</p>
+                                    <p><strong>Data Geração:</strong> ${new Date(folha.created_at).toLocaleDateString('pt-BR')} às ${new Date(folha.created_at).toLocaleTimeString('pt-BR')}</p>
+                                </div>
+                                <div class="col-md-6">
+                                    <p><strong>Salário Base:</strong> R$ ${parseFloat(folha.salario_base).toFixed(2)}</p>
+                                    <p><strong>Comissões:</strong> R$ ${parseFloat(folha.comissoes).toFixed(2)}</p>
+                                    <p><strong>Bônus:</strong> R$ ${parseFloat(folha.bonus).toFixed(2)}</p>
+                                    <p><strong>Vales:</strong> R$ ${parseFloat(folha.vales).toFixed(2)}</p>
+                                </div>
+                            </div>
+                            <hr>
+                            <div class="row">
+                                <div class="col-12">
+                                    <h5 class="text-center">Total: R$ ${parseFloat(folha.total).toFixed(2)}</h5>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Remover modal anterior se existir
+        const modalAnterior = document.getElementById('modalDetalhesFolha');
+        if (modalAnterior) {
+            modalAnterior.remove();
+        }
+        
+        // Adicionar novo modal
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        // Mostrar modal
+        const modal = new bootstrap.Modal(document.getElementById('modalDetalhesFolha'));
+        modal.show();
+        
+        // Remover modal quando fechado
+        document.getElementById('modalDetalhesFolha').addEventListener('hidden.bs.modal', function() {
+            this.remove();
+        });
+        
+    } catch (error) {
+        console.error('Erro ao carregar detalhes da folha:', error);
+        alert('Erro ao carregar detalhes da folha!');
+    }
+}
+
+// Função para carregar filtros do histórico de folhas
+async function carregarFiltrosHistorico() {
+    console.log('=== CARREGANDO FILTROS DO HISTÓRICO ===');
+    
+    // Carregar meses
+    await carregarMesesHistorico();
+    
+    // Carregar funcionários
+    await carregarFuncionariosHistorico();
+}
+
+async function carregarMesesHistorico() {
+    const select = document.getElementById('historico-mes');
+    if (!select) return;
+    
+    try {
+        const response = await fetch(`${API_BASE}/api/folha-pagamento`);
+        const folhas = await response.json();
+        
+        // Obter meses únicos
+        const mesesUnicos = [...new Set(folhas.map(f => f.mes_referencia))].sort().reverse();
+        
+        select.innerHTML = '<option value="">Todos os meses</option>';
+        mesesUnicos.forEach(mes => {
+            select.innerHTML += `<option value="${mes}">${formatarMes(mes)}</option>`;
+        });
+        
+        console.log('Meses carregados:', mesesUnicos.length);
+    } catch (error) {
+        console.error('Erro ao carregar meses:', error);
+    }
+}
+
+async function carregarFuncionariosHistorico() {
+    const select = document.getElementById('historico-funcionario');
+    if (!select) return;
+    
+    try {
+        const response = await fetch(`${API_BASE}/api/funcionarios`);
+        const funcionarios = await response.json();
+        
+        select.innerHTML = '<option value="">Todos os funcionários</option>';
+        funcionarios.forEach(func => {
+            select.innerHTML += `<option value="${func.id}">${func.nome}</option>`;
+        });
+        
+        console.log('Funcionários carregados:', funcionarios.length);
+    } catch (error) {
+        console.error('Erro ao carregar funcionários:', error);
+    }
 }
 
