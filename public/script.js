@@ -3049,7 +3049,6 @@ async function carregarHistoricoFolhas() {
     
     const mes = document.getElementById('historico-mes').value;
     const quinzena = document.getElementById('historico-quinzena').value;
-    const funcionario = document.getElementById('historico-funcionario').value;
     
     try {
         let url = `${API_BASE}/api/folha-pagamento`;
@@ -3068,23 +3067,35 @@ async function carregarHistoricoFolhas() {
         
         console.log('Folhas encontradas:', folhas.length);
         
-        // Filtrar por funcionário se selecionado
-        let folhasFiltradas = folhas;
-        if (funcionario) {
-            folhasFiltradas = folhas.filter(f => f.id_funcionario == funcionario);
-        }
+        // Agrupar folhas por mês e quinzena
+        const folhasAgrupadas = {};
+        folhas.forEach(folha => {
+            const chave = `${folha.mes_referencia}-${folha.quinzena}`;
+            if (!folhasAgrupadas[chave]) {
+                folhasAgrupadas[chave] = {
+                    mes_referencia: folha.mes_referencia,
+                    quinzena: folha.quinzena,
+                    data_geracao: folha.created_at,
+                    funcionarios: [],
+                    total_geral: 0
+                };
+            }
+            folhasAgrupadas[chave].funcionarios.push(folha);
+            folhasAgrupadas[chave].total_geral += parseFloat(folha.total);
+        });
         
-        console.log('Folhas após filtro:', folhasFiltradas.length);
+        // Converter para array e ordenar por data de geração (mais recente primeiro)
+        const folhasArray = Object.values(folhasAgrupadas);
+        folhasArray.sort((a, b) => new Date(b.data_geracao) - new Date(a.data_geracao));
         
-        // Ordenar por data de geração (mais recente primeiro)
-        folhasFiltradas.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        console.log('Folhas agrupadas:', folhasArray.length);
         
         const tbody = document.getElementById('tabela-historico-folhas');
         
-        if (folhasFiltradas.length === 0) {
+        if (folhasArray.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="10" class="text-center">
+                    <td colspan="4" class="text-center">
                         <div class="text-center py-4">
                             <i class="bi bi-inbox fs-1 text-muted"></i>
                             <p class="text-muted mt-2">Nenhuma folha encontrada</p>
@@ -3093,22 +3104,17 @@ async function carregarHistoricoFolhas() {
                 </tr>
             `;
         } else {
-            tbody.innerHTML = folhasFiltradas.map(folha => `
+            tbody.innerHTML = folhasArray.map(folha => `
                 <tr>
-                    <td>${new Date(folha.created_at).toLocaleDateString('pt-BR')}</td>
+                    <td>${new Date(folha.data_geracao).toLocaleDateString('pt-BR')}</td>
                     <td>${formatarMes(folha.mes_referencia)}</td>
                     <td>${folha.quinzena === 'dia_15' ? 'Dia 15' : 'Dia 30'}</td>
-                    <td>${folha.nome_funcionario}</td>
-                    <td>R$ ${parseFloat(folha.salario_base).toFixed(2)}</td>
-                    <td>R$ ${parseFloat(folha.comissoes).toFixed(2)}</td>
-                    <td>R$ ${parseFloat(folha.bonus).toFixed(2)}</td>
-                    <td>R$ ${parseFloat(folha.vales).toFixed(2)}</td>
-                    <td><strong>R$ ${parseFloat(folha.total).toFixed(2)}</strong></td>
+                    <td><strong>${folha.funcionarios.length} funcionários - Total: R$ ${folha.total_geral.toFixed(2)}</strong></td>
                     <td>
-                        <button class="btn btn-sm btn-info me-1" onclick="verDetalhesFolha(${folha.id})">
+                        <button class="btn btn-sm btn-info me-1" onclick="verDetalhesFolhaAgrupada('${folha.mes_referencia}', '${folha.quinzena}')">
                             <i class="bi bi-eye"></i> Ver Detalhes
                         </button>
-                        <button class="btn btn-sm btn-primary" onclick="baixarPDFFolha(${folha.id}, '${folha.mes_referencia}', '${folha.quinzena}')">
+                        <button class="btn btn-sm btn-primary" onclick="exportarPDFHistorico('${folha.mes_referencia}', '${folha.quinzena}')">
                             <i class="bi bi-download"></i> PDF
                         </button>
                     </td>
@@ -3258,230 +3264,112 @@ async function carregarFuncionariosHistorico() {
     }
 }
 
-// Função para baixar PDF de uma folha específica do histórico
-async function baixarPDFFolha(id, mes, quinzena) {
-    console.log('=== BAIXAR PDF FOLHA ===', id, mes, quinzena);
+// Função para exportar PDF do histórico usando a função exportarPDF existente
+async function exportarPDFHistorico(mes, quinzena) {
+    console.log('=== EXPORTAR PDF HISTÓRICO ===', mes, quinzena);
+    
+    // Definir os valores nos campos da página de folha de pagamento
+    const mesSelect = document.getElementById('mes-folha');
+    const quinzenaSelect = document.getElementById('quinzena-folha');
+    
+    if (mesSelect && quinzenaSelect) {
+        mesSelect.value = mes;
+        quinzenaSelect.value = quinzena;
+        
+        // Chamar a função exportarPDF existente
+        await exportarPDF();
+    } else {
+        alert('Erro ao exportar PDF!');
+    }
+}
+
+// Função para ver detalhes da folha agrupada
+async function verDetalhesFolhaAgrupada(mes, quinzena) {
+    console.log('=== VER DETALHES FOLHA AGRUPADA ===', mes, quinzena);
     
     try {
-        console.log('Carregando dados da folha...');
-        // Carregar dados da folha específica
-        let url = `${API_BASE}/api/folha-pagamento/${mes}`;
-        if (quinzena) {
-            url += `?quinzena=${quinzena}`;
-        }
-        const response = await fetch(url);
+        const response = await fetch(`${API_BASE}/api/folha-pagamento/${mes}?quinzena=${quinzena}`);
         const folhas = await response.json();
         
-        console.log('Folhas carregadas:', folhas.length, 'registros');
-        
         if (folhas.length === 0) {
-            alert('Não há dados de folha para este mês e quinzena!');
+            alert('Folha não encontrada!');
             return;
         }
         
-        console.log('Carregando dados detalhados de vendas e produção...');
-        // Carregar dados detalhados de vendas e produção
-        const [vendasResponse, producaoResponse] = await Promise.all([
-            fetch(`${API_BASE}/api/vendas`).then(r => r.json()),
-            fetch(`${API_BASE}/api/producao`).then(r => r.json())
-        ]);
+        // Criar modal de detalhes
+        const modalHtml = `
+            <div class="modal fade" id="modalDetalhesFolha" tabindex="-1">
+                <div class="modal-dialog modal-xl">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Detalhes da Folha de Pagamento - ${formatarMes(mes)} - ${quinzena === 'dia_15' ? 'Dia 15' : 'Dia 30'}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="table-responsive">
+                                <table class="table table-striped table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Funcionário</th>
+                                            <th>Tipo</th>
+                                            <th>Salário Base</th>
+                                            <th>Comissões</th>
+                                            <th>Bônus</th>
+                                            <th>Vales</th>
+                                            <th>Total</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${folhas.map(folha => `
+                                            <tr>
+                                                <td>${folha.nome_funcionario}</td>
+                                                <td>${folha.tipo}</td>
+                                                <td>R$ ${parseFloat(folha.salario_base).toFixed(2)}</td>
+                                                <td>R$ ${parseFloat(folha.comissoes).toFixed(2)}</td>
+                                                <td>R$ ${parseFloat(folha.bonus).toFixed(2)}</td>
+                                                <td>R$ ${parseFloat(folha.vales).toFixed(2)}</td>
+                                                <td><strong>R$ ${parseFloat(folha.total).toFixed(2)}</strong></td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                    <tfoot>
+                                        <tr>
+                                            <td colspan="6" class="text-end"><strong>TOTAL GERAL:</strong></td>
+                                            <td><strong>R$ ${folhas.reduce((sum, f) => sum + parseFloat(f.total), 0).toFixed(2)}</strong></td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
         
-        console.log('Vendas carregadas:', vendasResponse.length);
-        console.log('Produção carregada:', producaoResponse.length);
+        // Remover modal anterior se existir
+        const modalAnterior = document.getElementById('modalDetalhesFolha');
+        if (modalAnterior) {
+            modalAnterior.remove();
+        }
         
-        const vendas = vendasResponse.filter(v => v.data_venda.startsWith(mes));
-        const producao = producaoResponse.filter(p => p.data_producao.startsWith(mes));
+        // Adicionar novo modal
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
         
-        console.log('Vendas filtradas para o mês:', vendas.length);
-        console.log('Produção filtrada para o mês:', producao.length);
+        // Mostrar modal
+        const modal = new bootstrap.Modal(document.getElementById('modalDetalhesFolha'));
+        modal.show();
         
-        console.log('Criando PDF...');
-        // Criar PDF com margens ajustadas
-        const doc = new window.jspdf.jsPDF({
-            orientation: 'portrait',
-            unit: 'mm',
-            format: 'a4'
+        // Remover modal quando fechado
+        document.getElementById('modalDetalhesFolha').addEventListener('hidden.bs.modal', function() {
+            this.remove();
         });
         
-        console.log('PDF criado, adicionando conteúdo...');
-        
-        // Definir margens menores
-        const marginLeft = 10;
-        const marginRight = 10;
-        const marginTop = 20;
-        const pageWidth = doc.internal.pageSize.getWidth();
-        const pageHeight = doc.internal.pageSize.getHeight();
-        const usableWidth = pageWidth - marginLeft - marginRight;
-        
-        // Cabeçalho
-        doc.setFontSize(20);
-        doc.text('FOLHA DE PAGAMENTO DETALHADA', pageWidth / 2, 15, { align: 'center' });
-        
-        doc.setFontSize(12);
-        const periodoTexto = quinzena ? `${formatarMes(mes)} - ${quinzena === 'dia_15' ? 'Dia 15' : 'Dia 30'}` : formatarMes(mes);
-        doc.text(`Período: ${periodoTexto}`, pageWidth / 2, 25, { align: 'center' });
-        doc.text(`Data de geração: ${new Date().toLocaleDateString('pt-BR')}`, pageWidth / 2, 32, { align: 'center' });
-        
-        let yPosition = 45;
-        
-        // Resumo Geral
-        doc.setFontSize(14);
-        doc.text('RESUMO GERAL DO MÊS', 20, yPosition);
-        yPosition += 10;
-        
-        doc.setFontSize(10);
-        const totalMaquinasVendidas = vendas.reduce((sum, v) => sum + v.quantidade_maquinas, 0);
-        const totalMaquinasProduzidas = producao.reduce((sum, p) => sum + p.maquinas_produzidas, 0);
-        const totalComissoes = folhas.reduce((sum, f) => sum + f.comissoes, 0);
-        const totalBonificacoes = folhas.reduce((sum, f) => sum + f.bonus, 0);
-        const totalDescontos = folhas.reduce((sum, f) => sum + (f.vales || 0), 0);
-        
-        doc.text(`Total Máquinas Vendidas: ${totalMaquinasVendidas}`, 20, yPosition);
-        doc.text(`Total Máquinas Produzidas: ${totalMaquinasProduzidas}`, 20, yPosition + 7);
-        doc.text(`Total em Comissões: R$ ${totalComissoes.toFixed(2)}`, 20, yPosition + 14);
-        doc.text(`Total em Bonificações: R$ ${totalBonificacoes.toFixed(2)}`, 20, yPosition + 21);
-        doc.text(`Total em Descontos: R$ ${totalDescontos.toFixed(2)}`, 20, yPosition + 28);
-        
-        yPosition += 42;
-        
-        // Detalhes por Vendedora
-        const vendedoras = folhas.filter(f => f.tipo === 'vendedora');
-        if (vendedoras.length > 0) {
-            doc.setFontSize(14);
-            doc.text('DETALHES POR VENDEDORA', 20, yPosition);
-            yPosition += 10;
-            
-            doc.setFontSize(10);
-            vendedoras.forEach(vendedora => {
-                if (yPosition > pageHeight - 30) {
-                    doc.addPage();
-                    yPosition = 20;
-                }
-                
-                doc.setFontSize(11);
-                doc.text(`${vendedora.nome_funcionario}`, 20, yPosition);
-                yPosition += 8;
-                
-                doc.setFontSize(10);
-                doc.text(`  Salário Base: R$ ${parseFloat(vendedora.salario_base).toFixed(2)}`, 25, yPosition);
-                yPosition += 6;
-                doc.text(`  Comissões: R$ ${parseFloat(vendedora.comissoes).toFixed(2)}`, 25, yPosition);
-                yPosition += 6;
-                doc.text(`  Bônus: R$ ${parseFloat(vendedora.bonus).toFixed(2)}`, 25, yPosition);
-                yPosition += 6;
-                doc.text(`  Vales: R$ ${parseFloat(vendedora.vales).toFixed(2)}`, 25, yPosition);
-                yPosition += 6;
-                doc.setFontSize(11);
-                doc.text(`  Total: R$ ${parseFloat(vendedora.total).toFixed(2)}`, 25, yPosition);
-                yPosition += 12;
-            });
-        }
-        
-        // Detalhes por Produção
-        const producaoFuncionarios = folhas.filter(f => f.tipo === 'producao');
-        if (producaoFuncionarios.length > 0) {
-            if (yPosition > pageHeight - 30) {
-                doc.addPage();
-                yPosition = 20;
-            }
-            
-            doc.setFontSize(14);
-            doc.text('DETALHES POR PRODUÇÃO', 20, yPosition);
-            yPosition += 10;
-            
-            doc.setFontSize(10);
-            producaoFuncionarios.forEach(func => {
-                if (yPosition > pageHeight - 30) {
-                    doc.addPage();
-                    yPosition = 20;
-                }
-                
-                doc.setFontSize(11);
-                doc.text(`${func.nome_funcionario}`, 20, yPosition);
-                yPosition += 8;
-                
-                doc.setFontSize(10);
-                doc.text(`  Salário Base: R$ ${parseFloat(func.salario_base).toFixed(2)}`, 25, yPosition);
-                yPosition += 6;
-                doc.text(`  Comissões: R$ ${parseFloat(func.comissoes).toFixed(2)}`, 25, yPosition);
-                yPosition += 6;
-                doc.text(`  Bônus: R$ ${parseFloat(func.bonus).toFixed(2)}`, 25, yPosition);
-                yPosition += 6;
-                doc.text(`  Vales: R$ ${parseFloat(func.vales).toFixed(2)}`, 25, yPosition);
-                yPosition += 6;
-                doc.setFontSize(11);
-                doc.text(`  Total: R$ ${parseFloat(func.total).toFixed(2)}`, 25, yPosition);
-                yPosition += 12;
-            });
-        }
-        
-        // Detalhes por Administrativo
-        const administrativos = folhas.filter(f => f.tipo === 'administrativo');
-        if (administrativos.length > 0) {
-            if (yPosition > pageHeight - 30) {
-                doc.addPage();
-                yPosition = 20;
-            }
-            
-            doc.setFontSize(14);
-            doc.text('DETALHES POR ADMINISTRATIVO', 20, yPosition);
-            yPosition += 10;
-            
-            doc.setFontSize(10);
-            administrativos.forEach(func => {
-                if (yPosition > pageHeight - 30) {
-                    doc.addPage();
-                    yPosition = 20;
-                }
-                
-                doc.setFontSize(11);
-                doc.text(`${func.nome_funcionario}`, 20, yPosition);
-                yPosition += 8;
-                
-                doc.setFontSize(10);
-                doc.text(`  Salário Base: R$ ${parseFloat(func.salario_base).toFixed(2)}`, 25, yPosition);
-                yPosition += 6;
-                doc.text(`  Comissões: R$ ${parseFloat(func.comissoes).toFixed(2)}`, 25, yPosition);
-                yPosition += 6;
-                doc.text(`  Bônus: R$ ${parseFloat(func.bonus).toFixed(2)}`, 25, yPosition);
-                yPosition += 6;
-                doc.text(`  Vales: R$ ${parseFloat(func.vales).toFixed(2)}`, 25, yPosition);
-                yPosition += 6;
-                doc.setFontSize(11);
-                doc.text(`  Total: R$ ${parseFloat(func.total).toFixed(2)}`, 25, yPosition);
-                yPosition += 12;
-            });
-        }
-        
-        // Total Geral
-        if (yPosition > pageHeight - 30) {
-            doc.addPage();
-            yPosition = 20;
-        }
-        
-        yPosition += 10;
-        doc.setFontSize(14);
-        doc.text('TOTAL GERAL', 20, yPosition);
-        yPosition += 10;
-        
-        const totalGeral = folhas.reduce((sum, f) => sum + f.total, 0);
-        doc.setFontSize(12);
-        doc.text(`R$ ${totalGeral.toFixed(2)}`, 20, yPosition);
-        
-        yPosition += 20;
-        doc.setFontSize(8);
-        doc.text(`Emitido em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}.`, 105, yPosition, { align: 'center' });
-        
-        // Salvar PDF
-        const nomeArquivo = quinzena 
-            ? `folha-pagamento-${mes}-${quinzena}.pdf` 
-            : `folha-pagamento-${mes}.pdf`;
-        doc.save(nomeArquivo);
-        
-        console.log('PDF baixado com sucesso!');
     } catch (error) {
-        console.error('Erro ao baixar PDF:', error);
-        alert('Erro ao baixar PDF!');
+        console.error('Erro ao carregar detalhes da folha:', error);
+        alert('Erro ao carregar detalhes da folha!');
     }
 }
 

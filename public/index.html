@@ -557,24 +557,19 @@
                     <div class="card mb-4">
                         <div class="card-header">
                             <div class="row align-items-center">
-                                <div class="col-md-3">
+                                <div class="col-md-4">
                                     <select class="form-select" id="historico-mes">
                                         <option value="">Todos os meses</option>
                                     </select>
                                 </div>
-                                <div class="col-md-3">
+                                <div class="col-md-4">
                                     <select class="form-select" id="historico-quinzena">
                                         <option value="">Todas as quinzenas</option>
                                         <option value="dia_15">Dia 15</option>
                                         <option value="dia_30">Dia 30</option>
                                     </select>
                                 </div>
-                                <div class="col-md-3">
-                                    <select class="form-select" id="historico-funcionario">
-                                        <option value="">Todos os funcionários</option>
-                                    </select>
-                                </div>
-                                <div class="col-md-3">
+                                <div class="col-md-4">
                                     <button class="btn btn-primary w-100" onclick="carregarHistoricoFolhas()">
                                         <i class="bi bi-search"></i> Filtrar
                                     </button>
@@ -589,18 +584,13 @@
                                             <th>Data Geração</th>
                                             <th>Mês Referência</th>
                                             <th>Quinzena</th>
-                                            <th>Funcionário</th>
-                                            <th>Salário Base</th>
-                                            <th>Comissões</th>
-                                            <th>Bônus</th>
-                                            <th>Vales</th>
-                                            <th>Total</th>
+                                            <th>Funcionários / Total</th>
                                             <th>Ações</th>
                                         </tr>
                                     </thead>
                                     <tbody id="tabela-historico-folhas">
                                         <tr>
-                                            <td colspan="10" class="text-center">
+                                            <td colspan="5" class="text-center">
                                                 <div class="text-center py-4">
                                                     <i class="bi bi-inbox fs-1 text-muted"></i>
                                                     <p class="text-muted mt-2">Nenhuma folha encontrada</p>
