@@ -3105,8 +3105,11 @@ async function carregarHistoricoFolhas() {
                     <td>R$ ${parseFloat(folha.vales).toFixed(2)}</td>
                     <td><strong>R$ ${parseFloat(folha.total).toFixed(2)}</strong></td>
                     <td>
-                        <button class="btn btn-sm btn-info" onclick="verDetalhesFolha(${folha.id})">
+                        <button class="btn btn-sm btn-info me-1" onclick="verDetalhesFolha(${folha.id})">
                             <i class="bi bi-eye"></i> Ver Detalhes
+                        </button>
+                        <button class="btn btn-sm btn-primary" onclick="baixarPDFFolha(${folha.id}, '${folha.mes_referencia}', '${folha.quinzena}')">
+                            <i class="bi bi-download"></i> PDF
                         </button>
                     </td>
                 </tr>
@@ -3252,6 +3255,233 @@ async function carregarFuncionariosHistorico() {
         console.log('Funcionários carregados:', funcionarios.length);
     } catch (error) {
         console.error('Erro ao carregar funcionários:', error);
+    }
+}
+
+// Função para baixar PDF de uma folha específica do histórico
+async function baixarPDFFolha(id, mes, quinzena) {
+    console.log('=== BAIXAR PDF FOLHA ===', id, mes, quinzena);
+    
+    try {
+        console.log('Carregando dados da folha...');
+        // Carregar dados da folha específica
+        let url = `${API_BASE}/api/folha-pagamento/${mes}`;
+        if (quinzena) {
+            url += `?quinzena=${quinzena}`;
+        }
+        const response = await fetch(url);
+        const folhas = await response.json();
+        
+        console.log('Folhas carregadas:', folhas.length, 'registros');
+        
+        if (folhas.length === 0) {
+            alert('Não há dados de folha para este mês e quinzena!');
+            return;
+        }
+        
+        console.log('Carregando dados detalhados de vendas e produção...');
+        // Carregar dados detalhados de vendas e produção
+        const [vendasResponse, producaoResponse] = await Promise.all([
+            fetch(`${API_BASE}/api/vendas`).then(r => r.json()),
+            fetch(`${API_BASE}/api/producao`).then(r => r.json())
+        ]);
+        
+        console.log('Vendas carregadas:', vendasResponse.length);
+        console.log('Produção carregada:', producaoResponse.length);
+        
+        const vendas = vendasResponse.filter(v => v.data_venda.startsWith(mes));
+        const producao = producaoResponse.filter(p => p.data_producao.startsWith(mes));
+        
+        console.log('Vendas filtradas para o mês:', vendas.length);
+        console.log('Produção filtrada para o mês:', producao.length);
+        
+        console.log('Criando PDF...');
+        // Criar PDF com margens ajustadas
+        const doc = new window.jspdf.jsPDF({
+            orientation: 'portrait',
+            unit: 'mm',
+            format: 'a4'
+        });
+        
+        console.log('PDF criado, adicionando conteúdo...');
+        
+        // Definir margens menores
+        const marginLeft = 10;
+        const marginRight = 10;
+        const marginTop = 20;
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
+        const usableWidth = pageWidth - marginLeft - marginRight;
+        
+        // Cabeçalho
+        doc.setFontSize(20);
+        doc.text('FOLHA DE PAGAMENTO DETALHADA', pageWidth / 2, 15, { align: 'center' });
+        
+        doc.setFontSize(12);
+        const periodoTexto = quinzena ? `${formatarMes(mes)} - ${quinzena === 'dia_15' ? 'Dia 15' : 'Dia 30'}` : formatarMes(mes);
+        doc.text(`Período: ${periodoTexto}`, pageWidth / 2, 25, { align: 'center' });
+        doc.text(`Data de geração: ${new Date().toLocaleDateString('pt-BR')}`, pageWidth / 2, 32, { align: 'center' });
+        
+        let yPosition = 45;
+        
+        // Resumo Geral
+        doc.setFontSize(14);
+        doc.text('RESUMO GERAL DO MÊS', 20, yPosition);
+        yPosition += 10;
+        
+        doc.setFontSize(10);
+        const totalMaquinasVendidas = vendas.reduce((sum, v) => sum + v.quantidade_maquinas, 0);
+        const totalMaquinasProduzidas = producao.reduce((sum, p) => sum + p.maquinas_produzidas, 0);
+        const totalComissoes = folhas.reduce((sum, f) => sum + f.comissoes, 0);
+        const totalBonificacoes = folhas.reduce((sum, f) => sum + f.bonus, 0);
+        const totalDescontos = folhas.reduce((sum, f) => sum + (f.vales || 0), 0);
+        
+        doc.text(`Total Máquinas Vendidas: ${totalMaquinasVendidas}`, 20, yPosition);
+        doc.text(`Total Máquinas Produzidas: ${totalMaquinasProduzidas}`, 20, yPosition + 7);
+        doc.text(`Total em Comissões: R$ ${totalComissoes.toFixed(2)}`, 20, yPosition + 14);
+        doc.text(`Total em Bonificações: R$ ${totalBonificacoes.toFixed(2)}`, 20, yPosition + 21);
+        doc.text(`Total em Descontos: R$ ${totalDescontos.toFixed(2)}`, 20, yPosition + 28);
+        
+        yPosition += 42;
+        
+        // Detalhes por Vendedora
+        const vendedoras = folhas.filter(f => f.tipo === 'vendedora');
+        if (vendedoras.length > 0) {
+            doc.setFontSize(14);
+            doc.text('DETALHES POR VENDEDORA', 20, yPosition);
+            yPosition += 10;
+            
+            doc.setFontSize(10);
+            vendedoras.forEach(vendedora => {
+                if (yPosition > pageHeight - 30) {
+                    doc.addPage();
+                    yPosition = 20;
+                }
+                
+                doc.setFontSize(11);
+                doc.text(`${vendedora.nome_funcionario}`, 20, yPosition);
+                yPosition += 8;
+                
+                doc.setFontSize(10);
+                doc.text(`  Salário Base: R$ ${parseFloat(vendedora.salario_base).toFixed(2)}`, 25, yPosition);
+                yPosition += 6;
+                doc.text(`  Comissões: R$ ${parseFloat(vendedora.comissoes).toFixed(2)}`, 25, yPosition);
+                yPosition += 6;
+                doc.text(`  Bônus: R$ ${parseFloat(vendedora.bonus).toFixed(2)}`, 25, yPosition);
+                yPosition += 6;
+                doc.text(`  Vales: R$ ${parseFloat(vendedora.vales).toFixed(2)}`, 25, yPosition);
+                yPosition += 6;
+                doc.setFontSize(11);
+                doc.text(`  Total: R$ ${parseFloat(vendedora.total).toFixed(2)}`, 25, yPosition);
+                yPosition += 12;
+            });
+        }
+        
+        // Detalhes por Produção
+        const producaoFuncionarios = folhas.filter(f => f.tipo === 'producao');
+        if (producaoFuncionarios.length > 0) {
+            if (yPosition > pageHeight - 30) {
+                doc.addPage();
+                yPosition = 20;
+            }
+            
+            doc.setFontSize(14);
+            doc.text('DETALHES POR PRODUÇÃO', 20, yPosition);
+            yPosition += 10;
+            
+            doc.setFontSize(10);
+            producaoFuncionarios.forEach(func => {
+                if (yPosition > pageHeight - 30) {
+                    doc.addPage();
+                    yPosition = 20;
+                }
+                
+                doc.setFontSize(11);
+                doc.text(`${func.nome_funcionario}`, 20, yPosition);
+                yPosition += 8;
+                
+                doc.setFontSize(10);
+                doc.text(`  Salário Base: R$ ${parseFloat(func.salario_base).toFixed(2)}`, 25, yPosition);
+                yPosition += 6;
+                doc.text(`  Comissões: R$ ${parseFloat(func.comissoes).toFixed(2)}`, 25, yPosition);
+                yPosition += 6;
+                doc.text(`  Bônus: R$ ${parseFloat(func.bonus).toFixed(2)}`, 25, yPosition);
+                yPosition += 6;
+                doc.text(`  Vales: R$ ${parseFloat(func.vales).toFixed(2)}`, 25, yPosition);
+                yPosition += 6;
+                doc.setFontSize(11);
+                doc.text(`  Total: R$ ${parseFloat(func.total).toFixed(2)}`, 25, yPosition);
+                yPosition += 12;
+            });
+        }
+        
+        // Detalhes por Administrativo
+        const administrativos = folhas.filter(f => f.tipo === 'administrativo');
+        if (administrativos.length > 0) {
+            if (yPosition > pageHeight - 30) {
+                doc.addPage();
+                yPosition = 20;
+            }
+            
+            doc.setFontSize(14);
+            doc.text('DETALHES POR ADMINISTRATIVO', 20, yPosition);
+            yPosition += 10;
+            
+            doc.setFontSize(10);
+            administrativos.forEach(func => {
+                if (yPosition > pageHeight - 30) {
+                    doc.addPage();
+                    yPosition = 20;
+                }
+                
+                doc.setFontSize(11);
+                doc.text(`${func.nome_funcionario}`, 20, yPosition);
+                yPosition += 8;
+                
+                doc.setFontSize(10);
+                doc.text(`  Salário Base: R$ ${parseFloat(func.salario_base).toFixed(2)}`, 25, yPosition);
+                yPosition += 6;
+                doc.text(`  Comissões: R$ ${parseFloat(func.comissoes).toFixed(2)}`, 25, yPosition);
+                yPosition += 6;
+                doc.text(`  Bônus: R$ ${parseFloat(func.bonus).toFixed(2)}`, 25, yPosition);
+                yPosition += 6;
+                doc.text(`  Vales: R$ ${parseFloat(func.vales).toFixed(2)}`, 25, yPosition);
+                yPosition += 6;
+                doc.setFontSize(11);
+                doc.text(`  Total: R$ ${parseFloat(func.total).toFixed(2)}`, 25, yPosition);
+                yPosition += 12;
+            });
+        }
+        
+        // Total Geral
+        if (yPosition > pageHeight - 30) {
+            doc.addPage();
+            yPosition = 20;
+        }
+        
+        yPosition += 10;
+        doc.setFontSize(14);
+        doc.text('TOTAL GERAL', 20, yPosition);
+        yPosition += 10;
+        
+        const totalGeral = folhas.reduce((sum, f) => sum + f.total, 0);
+        doc.setFontSize(12);
+        doc.text(`R$ ${totalGeral.toFixed(2)}`, 20, yPosition);
+        
+        yPosition += 20;
+        doc.setFontSize(8);
+        doc.text(`Emitido em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}.`, 105, yPosition, { align: 'center' });
+        
+        // Salvar PDF
+        const nomeArquivo = quinzena 
+            ? `folha-pagamento-${mes}-${quinzena}.pdf` 
+            : `folha-pagamento-${mes}.pdf`;
+        doc.save(nomeArquivo);
+        
+        console.log('PDF baixado com sucesso!');
+    } catch (error) {
+        console.error('Erro ao baixar PDF:', error);
+        alert('Erro ao baixar PDF!');
     }
 }
 
