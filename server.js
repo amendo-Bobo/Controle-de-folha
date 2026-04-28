@@ -76,7 +76,7 @@ async function createSupabaseTables() {
                 CREATE TABLE IF NOT EXISTS funcionarios (
                     id BIGSERIAL PRIMARY KEY,
                     nome TEXT NOT NULL,
-                    tipo TEXT NOT NULL CHECK(tipo IN ('vendedora', 'producao', 'administrativo')),
+                    tipo TEXT NOT NULL CHECK(tipo IN ('vendedora', 'producao', 'administrativo', 'freelancer')),
                     comissao_maquina_grande REAL DEFAULT 450,
                     comissao_maquina_pequena REAL DEFAULT 250,
                     comissao_extra_desconto REAL DEFAULT 100,
@@ -87,6 +87,7 @@ async function createSupabaseTables() {
                     bonus_meta REAL DEFAULT 1000,
                     dia_15_percent REAL DEFAULT 50,
                     dia_30_percent REAL DEFAULT 50,
+                    valor_dia REAL DEFAULT 0,
                     ativo BOOLEAN DEFAULT true
                 )
             `);
@@ -113,6 +114,27 @@ async function createSupabaseTables() {
             } catch (error) {
                 console.log('Coluna dia_30_percent já existe ou erro ao adicionar:', error.message);
             }
+            
+            // Adicionar coluna valor_dia para freelancers
+            try {
+                await client.query(`ALTER TABLE funcionarios ADD COLUMN IF NOT EXISTS valor_dia REAL DEFAULT 0`);
+                console.log('Coluna valor_dia adicionada (se não existia)');
+            } catch (error) {
+                console.log('Coluna valor_dia já existe ou erro ao adicionar:', error.message);
+            }
+            
+            // Criar tabela presenca_freelancer
+            await client.query(`
+                CREATE TABLE IF NOT EXISTS presenca_freelancer (
+                    id BIGSERIAL PRIMARY KEY,
+                    id_funcionario BIGINT NOT NULL REFERENCES funcionarios(id),
+                    data DATE NOT NULL,
+                    presente BOOLEAN DEFAULT true,
+                    semana_referencia TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    UNIQUE(id_funcionario, data)
+                )
+            `);
             
             // Criar tabela vendas
             await client.query(`
@@ -328,7 +350,7 @@ const db = new sqlite3.Database('./erp.db', (err) => {
         db.run(`CREATE TABLE IF NOT EXISTS funcionarios (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nome TEXT NOT NULL,
-            tipo TEXT NOT NULL CHECK(tipo IN ('vendedora', 'producao', 'administrativo')),
+            tipo TEXT NOT NULL CHECK(tipo IN ('vendedora', 'producao', 'administrativo', 'freelancer')),
             comissao_maquina_grande REAL DEFAULT 450,
             comissao_maquina_pequena REAL DEFAULT 250,
             comissao_extra_desconto REAL DEFAULT 100,
@@ -339,6 +361,7 @@ const db = new sqlite3.Database('./erp.db', (err) => {
             bonus_meta REAL DEFAULT 1000,
             dia_15_percent REAL DEFAULT 50,
             dia_30_percent REAL DEFAULT 50,
+            valor_dia REAL DEFAULT 0,
             ativo BOOLEAN DEFAULT 1
         )`);
         
@@ -367,6 +390,15 @@ const db = new sqlite3.Database('./erp.db', (err) => {
                 console.log('Coluna dia_30_percent já existe ou erro ao adicionar:', err.message);
             } else if (!err) {
                 console.log('Coluna dia_30_percent adicionada (se não existia)');
+            }
+        });
+        
+        // Adicionar coluna valor_dia para freelancers
+        db.run(`ALTER TABLE funcionarios ADD COLUMN valor_dia REAL DEFAULT 0`, (err) => {
+            if (err && !err.message.includes('duplicate column name')) {
+                console.log('Coluna valor_dia já existe ou erro ao adicionar:', err.message);
+            } else if (!err) {
+                console.log('Coluna valor_dia adicionada (se não existia)');
             }
         });
 
@@ -485,6 +517,18 @@ const db = new sqlite3.Database('./erp.db', (err) => {
                 console.log('Coluna quinzena_inicial já existe ou erro:', err.message);
             }
         });
+        
+        // Tabela presenca_freelancer
+        db.run(`CREATE TABLE IF NOT EXISTS presenca_freelancer (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id_funcionario INTEGER NOT NULL,
+            data DATE NOT NULL,
+            presente BOOLEAN DEFAULT 1,
+            semana_referencia TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (id_funcionario) REFERENCES funcionarios(id),
+            UNIQUE(id_funcionario, data)
+        )`);
 
         console.log('Todas as tabelas criadas com sucesso!');
     });
@@ -1229,7 +1273,8 @@ app.post('/api/funcionarios', async (req, res) => {
             premio_meta,
             bonus_meta,
             dia_15_percent,
-            dia_30_percent
+            dia_30_percent,
+            valor_dia
         } = req.body;
         
         // Validação básica
@@ -1261,8 +1306,8 @@ app.post('/api/funcionarios', async (req, res) => {
                 
                 const result = await client.query(
                     `INSERT INTO funcionarios (nome, tipo, comissao_maquina_grande, comissao_maquina_pequena, 
-                     comissao_extra_desconto, salario_base, comissao_maquina_producao, meta_maquinas, premio_meta, bonus_meta, dia_15_percent, dia_30_percent, ativo) 
-                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, true) 
+                     comissao_extra_desconto, salario_base, comissao_maquina_producao, meta_maquinas, premio_meta, bonus_meta, dia_15_percent, dia_30_percent, valor_dia, ativo) 
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, true) 
                      RETURNING *`,
                     [
                         nome, 
@@ -1276,7 +1321,8 @@ app.post('/api/funcionarios', async (req, res) => {
                         Number(premio_meta) || 1000,
                         Number(bonus_meta) || 1000,
                         Number(dia_15_percent) || 50,
-                        Number(dia_30_percent) || 50
+                        Number(dia_30_percent) || 50,
+                        Number(valor_dia) || 0
                     ]
                 );
                 
@@ -1289,7 +1335,7 @@ app.post('/api/funcionarios', async (req, res) => {
                 console.log('PostgreSQL falhou, usando SQLite fallback:', pgError.message);
                 
                 // Fallback para SQLite
-                const sql = 'INSERT INTO funcionarios (nome, tipo, comissao_maquina_grande, comissao_maquina_pequena, comissao_extra_desconto, salario_base, comissao_maquina_producao, meta_maquinas, premio_meta, bonus_meta, dia_15_percent, dia_30_percent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+                const sql = 'INSERT INTO funcionarios (nome, tipo, comissao_maquina_grande, comissao_maquina_pequena, comissao_extra_desconto, salario_base, comissao_maquina_producao, meta_maquinas, premio_meta, bonus_meta, dia_15_percent, dia_30_percent, valor_dia) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
                 const params = [
                     nome, 
                     tipo, 
@@ -1302,7 +1348,8 @@ app.post('/api/funcionarios', async (req, res) => {
                     Number(premio_meta) || 1000,
                     Number(bonus_meta) || 1000,
                     Number(dia_15_percent) || 50,
-                    Number(dia_30_percent) || 50
+                    Number(dia_30_percent) || 50,
+                    Number(valor_dia) || 0
                 ];
                 
                 db.run(sql, params, function(err) {
@@ -1325,13 +1372,14 @@ app.post('/api/funcionarios', async (req, res) => {
                         bonus_meta: Number(bonus_meta) || 1000,
                         dia_15_percent: Number(dia_15_percent) || 50,
                         dia_30_percent: Number(dia_30_percent) || 50,
+                        valor_dia: Number(valor_dia) || 0,
                         ativo: true
                     });
                 });
             }
         } else {
             // Usar SQLite local
-            const sql = 'INSERT INTO funcionarios (nome, tipo, comissao_maquina_grande, comissao_maquina_pequena, comissao_extra_desconto, salario_base, comissao_maquina_producao, meta_maquinas, premio_meta, bonus_meta, dia_15_percent, dia_30_percent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+            const sql = 'INSERT INTO funcionarios (nome, tipo, comissao_maquina_grande, comissao_maquina_pequena, comissao_extra_desconto, salario_base, comissao_maquina_producao, meta_maquinas, premio_meta, bonus_meta, dia_15_percent, dia_30_percent, valor_dia) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
             const params = [
                 nome, 
                 tipo, 
@@ -1344,7 +1392,8 @@ app.post('/api/funcionarios', async (req, res) => {
                 Number(premio_meta) || 1000,
                 Number(bonus_meta) || 1000,
                 Number(dia_15_percent) || 50,
-                Number(dia_30_percent) || 50
+                Number(dia_30_percent) || 50,
+                Number(valor_dia) || 0
             ];
             
             db.run(sql, params, function(err) {
@@ -1367,6 +1416,7 @@ app.post('/api/funcionarios', async (req, res) => {
                     bonus_meta: Number(bonus_meta) || 1000,
                     dia_15_percent: Number(dia_15_percent) || 50,
                     dia_30_percent: Number(dia_30_percent) || 50,
+                    valor_dia: Number(valor_dia) || 0,
                     ativo: true
                 });
             });
@@ -1500,6 +1550,7 @@ app.put('/api/funcionarios/:id', async (req, res) => {
                     bonus_meta: Number(bonus_meta) || 1000,
                     dia_15_percent: Number(dia_15_percent) || 50,
                     dia_30_percent: Number(dia_30_percent) || 50,
+                    valor_dia: Number(valor_dia) || 0,
                     ativo: true
                 });
             });
@@ -3578,6 +3629,358 @@ app.post('/api/gerar-folha/:mes', async (req, res) => {
             // Usar SQLite local
             console.log('Usando SQLite local para gerar folha...');
             res.status(501).json({ error: 'Geração de folha não implementada para SQLite local' });
+        }
+    } catch (error) {
+        console.error('Erro geral:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// GET presenca_freelancer
+app.get('/api/presenca-freelancer', async (req, res) => {
+    console.log('=== GET /api/presenca-freelancer ===');
+    console.log('useSupabase:', useSupabase);
+    
+    try {
+        const { id_funcionario, semana_referencia } = req.query;
+        
+        if (useSupabase) {
+            const { Client } = require('pg');
+            const poolerUrl = databaseUrl.replace(
+                'postgresql://postgres:tiVW2cmpeVStByLm@db.yuwddqxdnyjvilbmjooc.supabase.co:5432/postgres',
+                'postgresql://postgres.yuwddqxdnyjvilbmjooc:tiVW2cmpeVStByLm@aws-1-sa-east-1.pooler.supabase.com:6543/postgres'
+            );
+            
+            const client = new Client({
+                connectionString: poolerUrl,
+                ssl: { rejectUnauthorized: false },
+                connectionTimeoutMillis: 10000,
+                query_timeout: 10000
+            });
+            
+            await client.connect();
+            
+            let query = 'SELECT * FROM presenca_freelancer WHERE 1=1';
+            const params = [];
+            let paramIndex = 1;
+            
+            if (id_funcionario) {
+                query += ` AND id_funcionario = $${paramIndex}`;
+                params.push(id_funcionario);
+                paramIndex++;
+            }
+            
+            if (semana_referencia) {
+                query += ` AND semana_referencia = $${paramIndex}`;
+                params.push(semana_referencia);
+                paramIndex++;
+            }
+            
+            query += ' ORDER BY data DESC';
+            
+            const result = await client.query(query, params);
+            await client.end();
+            
+            res.json(result.rows);
+        } else {
+            let query = 'SELECT * FROM presenca_freelancer WHERE 1=1';
+            const params = [];
+            
+            if (id_funcionario) {
+                query += ' AND id_funcionario = ?';
+                params.push(id_funcionario);
+            }
+            
+            if (semana_referencia) {
+                query += ' AND semana_referencia = ?';
+                params.push(semana_referencia);
+            }
+            
+            query += ' ORDER BY data DESC';
+            
+            db.all(query, params, (err, rows) => {
+                if (err) {
+                    console.error('Erro ao buscar presenças:', err);
+                    return res.status(500).json({ error: err.message });
+                }
+                res.json(rows);
+            });
+        }
+    } catch (error) {
+        console.error('Erro geral:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// POST presenca_freelancer
+app.post('/api/presenca-freelancer', async (req, res) => {
+    console.log('=== POST /api/presenca-freelancer ===');
+    console.log('Dados recebidos:', req.body);
+    
+    try {
+        const { id_funcionario, data, presente, semana_referencia } = req.body;
+        
+        if (!id_funcionario || !data || !semana_referencia) {
+            return res.status(400).json({ error: 'id_funcionario, data e semana_referencia são obrigatórios' });
+        }
+        
+        if (useSupabase) {
+            const { Client } = require('pg');
+            const poolerUrl = databaseUrl.replace(
+                'postgresql://postgres:tiVW2cmpeVStByLm@db.yuwddqxdnyjvilbmjooc.supabase.co:5432/postgres',
+                'postgresql://postgres.yuwddqxdnyjvilbmjooc:tiVW2cmpeVStByLm@aws-1-sa-east-1.pooler.supabase.com:6543/postgres'
+            );
+            
+            const client = new Client({
+                connectionString: poolerUrl,
+                ssl: { rejectUnauthorized: false },
+                connectionTimeoutMillis: 10000,
+                query_timeout: 10000
+            });
+            
+            await client.connect();
+            
+            const result = await client.query(
+                `INSERT INTO presenca_freelancer (id_funcionario, data, presente, semana_referencia) 
+                 VALUES ($1, $2, $3, $4) 
+                 ON CONFLICT (id_funcionario, data) 
+                 DO UPDATE SET presente = $3, semana_referencia = $4 
+                 RETURNING *`,
+                [id_funcionario, data, presente !== undefined ? presente : true, semana_referencia]
+            );
+            
+            await client.end();
+            res.json(result.rows[0]);
+        } else {
+            const sql = `INSERT INTO presenca_freelancer (id_funcionario, data, presente, semana_referencia) 
+                         VALUES (?, ?, ?, ?) 
+                         ON CONFLICT(id_funcionario, data) 
+                         DO UPDATE SET presente = ?, semana_referencia = ?`;
+            
+            db.run(sql, [id_funcionario, data, presente !== undefined ? presente : 1, semana_referencia, 
+                         presente !== undefined ? presente : 1, semana_referencia], function(err) {
+                if (err) {
+                    console.error('Erro ao inserir presença:', err);
+                    return res.status(500).json({ error: err.message });
+                }
+                res.json({ 
+                    id: this.lastID, 
+                    id_funcionario, 
+                    data, 
+                    presente: presente !== undefined ? presente : 1, 
+                    semana_referencia 
+                });
+            });
+        }
+    } catch (error) {
+        console.error('Erro geral:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// DELETE presenca_freelancer
+app.delete('/api/presenca-freelancer/:id', async (req, res) => {
+    console.log('=== DELETE /api/presenca-freelancer/:id ===');
+    console.log('ID:', req.params.id);
+    
+    try {
+        const { id } = req.params;
+        
+        if (useSupabase) {
+            const { Client } = require('pg');
+            const poolerUrl = databaseUrl.replace(
+                'postgresql://postgres:tiVW2cmpeVStByLm@db.yuwddqxdnyjvilbmjooc.supabase.co:5432/postgres',
+                'postgresql://postgres.yuwddqxdnyjvilbmjooc:tiVW2cmpeVStByLm@aws-1-sa-east-1.pooler.supabase.com:6543/postgres'
+            );
+            
+            const client = new Client({
+                connectionString: poolerUrl,
+                ssl: { rejectUnauthorized: false },
+                connectionTimeoutMillis: 10000,
+                query_timeout: 10000
+            });
+            
+            await client.connect();
+            
+            await client.query('DELETE FROM presenca_freelancer WHERE id = $1', [id]);
+            await client.end();
+            
+            res.json({ message: 'Presença excluída com sucesso' });
+        } else {
+            db.run('DELETE FROM presenca_freelancer WHERE id = ?', [id], function(err) {
+                if (err) {
+                    console.error('Erro ao excluir presença:', err);
+                    return res.status(500).json({ error: err.message });
+                }
+                res.json({ message: 'Presença excluída com sucesso' });
+            });
+        }
+    } catch (error) {
+        console.error('Erro geral:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// POST gerar-folha-freelancer-semanal
+app.post('/api/gerar-folha-freelancer-semanal', async (req, res) => {
+    console.log('=== POST /api/gerar-folha-freelancer-semanal ===');
+    console.log('Dados recebidos:', req.body);
+    
+    try {
+        const { semana_referencia } = req.body;
+        
+        if (!semana_referencia) {
+            return res.status(400).json({ error: 'semana_referencia é obrigatório (formato: YYYY-WXX)' });
+        }
+        
+        if (useSupabase) {
+            const { Client } = require('pg');
+            const poolerUrl = databaseUrl.replace(
+                'postgresql://postgres:tiVW2cmpeVStByLm@db.yuwddqxdnyjvilbmjooc.supabase.co:5432/postgres',
+                'postgresql://postgres.yuwddqxdnyjvilbmjooc:tiVW2cmpeVStByLm@aws-1-sa-east-1.pooler.supabase.com:6543/postgres'
+            );
+            
+            const client = new Client({
+                connectionString: poolerUrl,
+                ssl: { rejectUnauthorized: false },
+                connectionTimeoutMillis: 10000,
+                query_timeout: 10000
+            });
+            
+            await client.connect();
+            
+            // Buscar freelancers ativos
+            const freelancersResult = await client.query(
+                "SELECT id, nome, valor_dia FROM funcionarios WHERE tipo = 'freelancer' AND ativo = true"
+            );
+            
+            const folhaGerada = [];
+            
+            for (const freelancer of freelancersResult.rows) {
+                // Buscar presenças do freelancer na semana
+                const presencasResult = await client.query(
+                    "SELECT * FROM presenca_freelancer WHERE id_funcionario = $1 AND semana_referencia = $2",
+                    [freelancer.id, semana_referencia]
+                );
+                
+                // Contar dias presentes
+                const diasPresentes = presencasResult.rows.filter(p => p.presente).length;
+                const diasTotal = presencasResult.rows.length;
+                
+                // Calcular total (dias presentes * valor_dia)
+                const total = diasPresentes * (freelancer.valor_dia || 0);
+                
+                // Inserir folha de pagamento
+                const result = await client.query(
+                    `INSERT INTO folha_pagamento 
+                     (id_funcionario, mes_referencia, quinzena, salario_base, comissoes, bonus, vales, total, detalhe_comissoes, data_geracao) 
+                     VALUES ($1, $2, 'semanal', $3, 0, 0, 0, $4, $5, CURRENT_DATE) 
+                     ON CONFLICT (id_funcionario, mes_referencia, quinzena) 
+                     DO UPDATE SET salario_base = $3, total = $4, detalhe_comissoes = $5 
+                     RETURNING *`,
+                    [
+                        freelancer.id,
+                        semana_referencia.split('-')[0] + '-' + semana_referencia.split('-')[1], // YYYY-MM
+                        freelancer.valor_dia || 0,
+                        total,
+                        JSON.stringify({ dias_presentes: diasPresentes, dias_total: diasTotal, valor_dia: freelancer.valor_dia })
+                    ]
+                );
+                
+                folhaGerada.push({
+                    id_funcionario: freelancer.id,
+                    nome_funcionario: freelancer.nome,
+                    tipo: 'freelancer',
+                    mes_referencia: semana_referencia.split('-')[0] + '-' + semana_referencia.split('-')[1],
+                    quinzena: 'semanal',
+                    salario_base: freelancer.valor_dia || 0,
+                    comissoes: 0,
+                    bonus: 0,
+                    vales: 0,
+                    total: total,
+                    detalhe_comissoes: JSON.stringify({ dias_presentes: diasPresentes, dias_total: diasTotal, valor_dia: freelancer.valor_dia }),
+                    data_geracao: new Date().toISOString().split('T')[0]
+                });
+            }
+            
+            await client.end();
+            
+            console.log('Folha de pagamento semanal gerada com sucesso!');
+            res.json({ 
+                message: 'Folha de pagamento semanal gerada com sucesso!',
+                folha: folhaGerada,
+                total_funcionarios: folhaGerada.length
+            });
+        } else {
+            // Usar SQLite local
+            db.all("SELECT id, nome, valor_dia FROM funcionarios WHERE tipo = 'freelancer' AND ativo = 1", [], async (err, freelancers) => {
+                if (err) {
+                    console.error('Erro ao buscar freelancers:', err);
+                    return res.status(500).json({ error: err.message });
+                }
+                
+                const folhaGerada = [];
+                
+                for (const freelancer of freelancers) {
+                    // Buscar presenças do freelancer na semana
+                    db.all("SELECT * FROM presenca_freelancer WHERE id_funcionario = ? AND semana_referencia = ?", 
+                        [freelancer.id, semana_referencia], (presErr, presencas) => {
+                            if (presErr) {
+                                console.error('Erro ao buscar presenças:', presErr);
+                                return;
+                            }
+                            
+                            // Contar dias presentes
+                            const diasPresentes = presencas.filter(p => p.presente).length;
+                            const diasTotal = presencas.length;
+                            
+                            // Calcular total (dias presentes * valor_dia)
+                            const total = diasPresentes * (freelancer.valor_dia || 0);
+                            
+                            // Inserir folha de pagamento
+                            const sql = `INSERT INTO folha_pagamento 
+                                         (id_funcionario, mes_referencia, quinzena, salario_base, comissoes, bonus, vales, total, detalhe_comissoes, data_geracao) 
+                                         VALUES (?, ?, 'semanal', ?, 0, 0, 0, ?, ?, CURRENT_DATE)`;
+                            
+                            db.run(sql, [
+                                freelancer.id,
+                                semana_referencia.split('-')[0] + '-' + semana_referencia.split('-')[1],
+                                freelancer.valor_dia || 0,
+                                total,
+                                JSON.stringify({ dias_presentes: diasPresentes, dias_total: diasTotal, valor_dia: freelancer.valor_dia })
+                            ], function(insertErr) {
+                                if (insertErr) {
+                                    console.error('Erro ao inserir folha:', insertErr);
+                                    return;
+                                }
+                                
+                                folhaGerada.push({
+                                    id_funcionario: freelancer.id,
+                                    nome_funcionario: freelancer.nome,
+                                    tipo: 'freelancer',
+                                    mes_referencia: semana_referencia.split('-')[0] + '-' + semana_referencia.split('-')[1],
+                                    quinzena: 'semanal',
+                                    salario_base: freelancer.valor_dia || 0,
+                                    comissoes: 0,
+                                    bonus: 0,
+                                    vales: 0,
+                                    total: total,
+                                    detalhe_comissoes: JSON.stringify({ dias_presentes: diasPresentes, dias_total: diasTotal, valor_dia: freelancer.valor_dia }),
+                                    data_geracao: new Date().toISOString().split('T')[0]
+                                });
+                            });
+                        });
+                }
+                
+                setTimeout(() => {
+                    console.log('Folha de pagamento semanal gerada com sucesso!');
+                    res.json({ 
+                        message: 'Folha de pagamento semanal gerada com sucesso!',
+                        folha: folhaGerada,
+                        total_funcionarios: folhaGerada.length
+                    });
+                }, 1000);
+            });
         }
     } catch (error) {
         console.error('Erro geral:', error);

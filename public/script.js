@@ -203,6 +203,7 @@ function setupFormFuncionario() {
         const campoSalario = document.getElementById('campo-salario');
         const campoComissaoProducao = document.getElementById('campo-comissao-producao');
         const campoQuinzena = document.getElementById('campo-quinzena');
+        const campoValorDia = document.getElementById('campo-valor-dia');
         
         if (this.value === 'vendedora') {
             campoComissaoGrande.style.display = 'block';
@@ -214,6 +215,7 @@ function setupFormFuncionario() {
             campoSalario.style.display = 'none';
             campoComissaoProducao.style.display = 'none';
             campoQuinzena.style.display = 'none';
+            campoValorDia.style.display = 'none';
         } else if (this.value === 'producao') {
             campoComissaoGrande.style.display = 'none';
             campoComissaoPequena.style.display = 'none';
@@ -224,6 +226,18 @@ function setupFormFuncionario() {
             campoSalario.style.display = 'block';
             campoComissaoProducao.style.display = 'block';
             campoQuinzena.style.display = 'block';
+            campoValorDia.style.display = 'none';
+        } else if (this.value === 'freelancer') {
+            campoComissaoGrande.style.display = 'none';
+            campoComissaoPequena.style.display = 'none';
+            campoComissaoExtra.style.display = 'none';
+            campoMeta.style.display = 'none';
+            campoBonusMeta.style.display = 'none';
+            campoBonusMetaExtra.style.display = 'none';
+            campoSalario.style.display = 'none';
+            campoComissaoProducao.style.display = 'none';
+            campoQuinzena.style.display = 'none';
+            campoValorDia.style.display = 'block';
         } else {
             campoComissaoGrande.style.display = 'none';
             campoComissaoPequena.style.display = 'none';
@@ -234,6 +248,7 @@ function setupFormFuncionario() {
             campoSalario.style.display = 'block';
             campoComissaoProducao.style.display = 'none';
             campoQuinzena.style.display = 'block';
+            campoValorDia.style.display = 'none';
         }
     });
 }
@@ -979,6 +994,7 @@ async function salvarFuncionario() {
     const comissaoProducao = parseFloat(document.getElementById('func-comissao-producao').value) || 100;
     const dia15Percent = parseFloat(document.getElementById('func-dia-15-percent').value) || 50;
     const dia30Percent = parseFloat(document.getElementById('func-dia-30-percent').value) || 50;
+    const valorDia = parseFloat(document.getElementById('func-valor-dia').value) || 50;
     
     if (!nome || !tipo) {
         alert('Preencha todos os campos obrigatórios!');
@@ -1001,7 +1017,8 @@ async function salvarFuncionario() {
                 salario_base: tipo === 'producao' || tipo === 'administrativo' ? salario : 0,
                 comissao_maquina_producao: tipo === 'producao' ? comissaoProducao : 0,
                 dia_15_percent: tipo === 'producao' || tipo === 'administrativo' ? dia15Percent : 50,
-                dia_30_percent: tipo === 'producao' || tipo === 'administrativo' ? dia30Percent : 50
+                dia_30_percent: tipo === 'producao' || tipo === 'administrativo' ? dia30Percent : 50,
+                valor_dia: tipo === 'freelancer' ? valorDia : 0
             })
         });
         
