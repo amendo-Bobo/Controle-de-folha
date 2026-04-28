@@ -127,6 +127,9 @@
                     <a class="nav-link" href="#" data-page="vales">
                         <i class="bi bi-cash-coin"></i> Vales
                     </a>
+                    <a class="nav-link" href="#" data-page="freelancers">
+                        <i class="bi bi-person-badge"></i> Freelancers
+                    </a>
                     <a class="nav-link" href="#" data-page="folha-pagamento">
                         <i class="bi bi-cash-stack"></i> Folha Pagamento
                     </a>
@@ -602,6 +605,216 @@
                             </div>
                         </div>
                     </div>
+                </div>
+
+                <!-- Freelancers -->
+                <div id="freelancers" class="page-section">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h2>Freelancers</h2>
+                        <div>
+                            <button class="btn btn-success me-2" onclick="abrirModalRegistrarPresenca()">
+                                <i class="bi bi-calendar-check"></i> Registrar Presença
+                            </button>
+                            <button class="btn btn-primary" onclick="abrirModalGerarFolhaSemanal()">
+                                <i class="bi bi-cash-stack"></i> Gerar Folha Semanal
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Lista de Freelancers -->
+                    <div class="card mb-4">
+                        <div class="card-header bg-info text-white">
+                            <h5 class="mb-0">👤 Freelancers Ativos</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-striped table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Nome</th>
+                                            <th>Valor por Dia</th>
+                                            <th>Status</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tabela-freelancers">
+                                        <tr>
+                                            <td colspan="4" class="text-center">
+                                                <div class="text-center py-4">
+                                                    <i class="bi bi-inbox fs-1 text-muted"></i>
+                                                    <p class="text-muted mt-2">Nenhum freelancer encontrado</p>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Histórico de Presenças -->
+                    <div class="card mb-4">
+                        <div class="card-header bg-secondary text-white">
+                            <h5 class="mb-0">📅 Histórico de Presenças</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row mb-3">
+                                <div class="col-md-4">
+                                    <label class="form-label">Freelancer</label>
+                                    <select class="form-select" id="filtro-freelancer-presenca">
+                                        <option value="">Todos</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Semana</label>
+                                    <input type="text" class="form-control" id="filtro-semana-presenca" placeholder="YYYY-WXX (ex: 2026-W17)">
+                                </div>
+                                <div class="col-md-4 d-flex align-items-end">
+                                    <button class="btn btn-primary w-100" onclick="carregarPresencasFreelancer()">
+                                        <i class="bi bi-search"></i> Filtrar
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-striped table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Freelancer</th>
+                                            <th>Data</th>
+                                            <th>Presente</th>
+                                            <th>Semana Referência</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tabela-presencas-freelancer">
+                                        <tr>
+                                            <td colspan="5" class="text-center">
+                                                <div class="text-center py-4">
+                                                    <i class="bi bi-inbox fs-1 text-muted"></i>
+                                                    <p class="text-muted mt-2">Nenhuma presença encontrada</p>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Folha Semanal -->
+                    <div class="card mb-4">
+                        <div class="card-header bg-warning text-dark">
+                            <h5 class="mb-0">💰 Folha de Pagamento Semanal</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row mb-3">
+                                <div class="col-md-4">
+                                    <label class="form-label">Semana</label>
+                                    <input type="text" class="form-control" id="filtro-semana-folha" placeholder="YYYY-WXX (ex: 2026-W17)">
+                                </div>
+                                <div class="col-md-4 d-flex align-items-end">
+                                    <button class="btn btn-primary w-100" onclick="carregarFolhaFreelancerSemanal()">
+                                        <i class="bi bi-search"></i> Buscar Folha
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-striped table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Freelancer</th>
+                                            <th>Valor por Dia</th>
+                                            <th>Dias Presentes</th>
+                                            <th>Total</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tabela-folha-freelancer">
+                                        <tr>
+                                            <td colspan="5" class="text-center">
+                                                <div class="text-center py-4">
+                                                    <i class="bi bi-inbox fs-1 text-muted"></i>
+                                                    <p class="text-muted mt-2">Nenhuma folha encontrada</p>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Registrar Presença -->
+    <div class="modal fade" id="modalRegistrarPresenca" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Registrar Presença de Freelancer</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="form-presenca-freelancer">
+                        <div class="mb-3">
+                            <label class="form-label">Freelancer</label>
+                            <select class="form-select" id="presenca-freelancer" required>
+                                <option value="">Selecione...</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Data</label>
+                            <input type="date" class="form-control" id="presenca-data" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Semana Referência</label>
+                            <input type="text" class="form-control" id="presenca-semana" placeholder="YYYY-WXX (ex: 2026-W17)" required>
+                            <small class="text-muted">Use o formato YYYY-WXX onde XX é o número da semana</small>
+                        </div>
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="presenca-presente" checked>
+                                <label class="form-check-label" for="presenca-presente">
+                                    Presente
+                                </label>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" onclick="salvarPresencaFreelancer()">Salvar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Gerar Folha Semanal -->
+    <div class="modal fade" id="modalGerarFolhaSemanal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Gerar Folha de Pagamento Semanal</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="form-folha-semanal">
+                        <div class="mb-3">
+                            <label class="form-label">Semana Referência</label>
+                            <input type="text" class="form-control" id="folha-semana" placeholder="YYYY-WXX (ex: 2026-W17)" required>
+                            <small class="text-muted">Use o formato YYYY-WXX onde XX é o número da semana (ex: 2026-W17 para semana 17 de 2026)</small>
+                        </div>
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle"></i>
+                            A folha será gerada para todos os freelancers ativos, calculando o total baseado nos dias presentes na semana × valor por dia.
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" onclick="gerarFolhaFreelancerSemanal()">Gerar Folha</button>
                 </div>
             </div>
         </div>

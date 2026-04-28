@@ -3439,3 +3439,347 @@ async function excluirFolhaHistorico(mes, quinzena) {
     }
 }
 
+// Funções para Freelancers
+async function carregarFreelancers() {
+    try {
+        const response = await fetch(`${API_BASE}/api/funcionarios`);
+        const funcionarios = await response.json();
+        
+        const freelancers = funcionarios.filter(f => f.tipo === 'freelancer');
+        
+        const tbody = document.getElementById('tabela-freelancers');
+        
+        if (freelancers.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="4" class="text-center">
+                        <div class="text-center py-4">
+                            <i class="bi bi-inbox fs-1 text-muted"></i>
+                            <p class="text-muted mt-2">Nenhum freelancer encontrado</p>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        tbody.innerHTML = freelancers.map(f => `
+            <tr>
+                <td>${f.nome}</td>
+                <td>R$ ${(f.valor_dia || 0).toFixed(2)}</td>
+                <td>
+                    <span class="badge ${f.ativo ? 'bg-success' : 'bg-danger'}">
+                        ${f.ativo ? 'Ativo' : 'Inativo'}
+                    </span>
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-primary" onclick="editarFuncionario(${f.id})">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                </td>
+            </tr>
+        `).join('');
+        
+        // Preencher selects de freelancer
+        const selectPresenca = document.getElementById('presenca-freelancer');
+        const selectFiltroPresenca = document.getElementById('filtro-freelancer-presenca');
+        
+        if (selectPresenca) {
+            selectPresenca.innerHTML = '<option value="">Selecione...</option>' + 
+                freelancers.map(f => `<option value="${f.id}">${f.nome}</option>`).join('');
+        }
+        
+        if (selectFiltroPresenca) {
+            selectFiltroPresenca.innerHTML = '<option value="">Todos</option>' + 
+                freelancers.map(f => `<option value="${f.id}">${f.nome}</option>`).join('');
+        }
+    } catch (error) {
+        console.error('Erro ao carregar freelancers:', error);
+    }
+}
+
+function abrirModalRegistrarPresenca() {
+    const modal = new bootstrap.Modal(document.getElementById('modalRegistrarPresenca'));
+    modal.show();
+    
+    // Definir data atual como padrão
+    const hoje = new Date().toISOString().split('T')[0];
+    document.getElementById('presenca-data').value = hoje;
+    
+    // Calcular semana atual
+    const now = new Date();
+    const year = now.getFullYear();
+    const week = getWeekNumber(now);
+    document.getElementById('presenca-semana').value = `${year}-W${week}`;
+}
+
+async function salvarPresencaFreelancer() {
+    const idFuncionario = document.getElementById('presenca-freelancer').value;
+    const data = document.getElementById('presenca-data').value;
+    const semanaReferencia = document.getElementById('presenca-semana').value;
+    const presente = document.getElementById('presenca-presente').checked;
+    
+    if (!idFuncionario || !data || !semanaReferencia) {
+        alert('Preencha todos os campos obrigatórios!');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE}/api/presenca-freelancer`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                id_funcionario: parseInt(idFuncionario),
+                data,
+                presente,
+                semana_referencia: semanaReferencia
+            })
+        });
+        
+        if (response.ok) {
+            alert('Presença registrada com sucesso!');
+            
+            // Fechar modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('modalRegistrarPresenca'));
+            modal.hide();
+            
+            // Limpar formulário
+            document.getElementById('form-presenca-freelancer').reset();
+            
+            // Recarregar presenças
+            carregarPresencasFreelancer();
+        } else {
+            alert('Erro ao registrar presença!');
+        }
+    } catch (error) {
+        console.error('Erro ao salvar presença:', error);
+        alert('Erro ao salvar presença!');
+    }
+}
+
+async function carregarPresencasFreelancer() {
+    const idFuncionario = document.getElementById('filtro-freelancer-presenca').value;
+    const semanaReferencia = document.getElementById('filtro-semana-presenca').value;
+    
+    try {
+        let url = `${API_BASE}/api/presenca-freelancer`;
+        const params = [];
+        
+        if (idFuncionario) params.push(`id_funcionario=${idFuncionario}`);
+        if (semanaReferencia) params.push(`semana_referencia=${semanaReferencia}`);
+        
+        if (params.length > 0) url += '?' + params.join('&');
+        
+        const response = await fetch(url);
+        const presencas = await response.json();
+        
+        // Buscar nomes dos funcionários
+        const funcionariosResponse = await fetch(`${API_BASE}/api/funcionarios`);
+        const funcionarios = await funcionariosResponse.json();
+        
+        const tbody = document.getElementById('tabela-presencas-freelancer');
+        
+        if (presencas.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center">
+                        <div class="text-center py-4">
+                            <i class="bi bi-inbox fs-1 text-muted"></i>
+                            <p class="text-muted mt-2">Nenhuma presença encontrada</p>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        tbody.innerHTML = presencas.map(p => {
+            const funcionario = funcionarios.find(f => f.id === p.id_funcionario);
+            return `
+                <tr>
+                    <td>${funcionario ? funcionario.nome : 'Desconhecido'}</td>
+                    <td>${formatarData(p.data)}</td>
+                    <td>
+                        <span class="badge ${p.presente ? 'bg-success' : 'bg-danger'}">
+                            ${p.presente ? 'Presente' : 'Ausente'}
+                        </span>
+                    </td>
+                    <td>${p.semana_referencia}</td>
+                    <td>
+                        <button class="btn btn-sm btn-danger" onclick="excluirPresencaFreelancer(${p.id})">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    } catch (error) {
+        console.error('Erro ao carregar presenças:', error);
+    }
+}
+
+async function excluirPresencaFreelancer(id) {
+    if (!confirm('Deseja excluir esta presença?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE}/api/presenca-freelancer/${id}`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            alert('Presença excluída com sucesso!');
+            carregarPresencasFreelancer();
+        } else {
+            alert('Erro ao excluir presença!');
+        }
+    } catch (error) {
+        console.error('Erro ao excluir presença:', error);
+        alert('Erro ao excluir presença!');
+    }
+}
+
+function abrirModalGerarFolhaSemanal() {
+    const modal = new bootstrap.Modal(document.getElementById('modalGerarFolhaSemanal'));
+    modal.show();
+    
+    // Calcular semana atual
+    const now = new Date();
+    const year = now.getFullYear();
+    const week = getWeekNumber(now);
+    document.getElementById('folha-semana').value = `${year}-W${week}`;
+}
+
+async function gerarFolhaFreelancerSemanal() {
+    const semanaReferencia = document.getElementById('folha-semana').value;
+    
+    if (!semanaReferencia) {
+        alert('Preencha a semana de referência!');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE}/api/gerar-folha-freelancer-semanal`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ semana_referencia: semanaReferencia })
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            alert(`Folha gerada com sucesso! ${data.total_funcionarios} freelancers processados.`);
+            
+            // Fechar modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('modalGerarFolhaSemanal'));
+            modal.hide();
+            
+            // Limpar formulário
+            document.getElementById('form-folha-semanal').reset();
+            
+            // Carregar folha
+            document.getElementById('filtro-semana-folha').value = semanaReferencia;
+            carregarFolhaFreelancerSemanal();
+        } else {
+            alert('Erro ao gerar folha!');
+        }
+    } catch (error) {
+        console.error('Erro ao gerar folha:', error);
+        alert('Erro ao gerar folha!');
+    }
+}
+
+async function carregarFolhaFreelancerSemanal() {
+    const semanaReferencia = document.getElementById('filtro-semana-folha').value;
+    
+    if (!semanaReferencia) {
+        alert('Informe a semana de referência!');
+        return;
+    }
+    
+    try {
+        // Extrair mês e ano da semana (formato YYYY-WXX)
+        const [ano, semana] = semanaReferencia.split('-');
+        const mesReferencia = `${ano}-${semana.split('W')[1]}`;
+        
+        const response = await fetch(`${API_BASE}/api/folha-pagamento?mes=${mesReferencia}&quinzena=semanal`);
+        const folha = await response.json();
+        
+        // Buscar nomes dos funcionários
+        const funcionariosResponse = await fetch(`${API_BASE}/api/funcionarios`);
+        const funcionarios = await funcionariosResponse.json();
+        
+        const tbody = document.getElementById('tabela-folha-freelancer');
+        
+        if (folha.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center">
+                        <div class="text-center py-4">
+                            <i class="bi bi-inbox fs-1 text-muted"></i>
+                            <p class="text-muted mt-2">Nenhuma folha encontrada para esta semana</p>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        tbody.innerHTML = folha.map(f => {
+            const funcionario = funcionarios.find(func => func.id === f.id_funcionario);
+            const detalhes = f.detalhe_comissoes ? JSON.parse(f.detalhe_comissoes) : {};
+            
+            return `
+                <tr>
+                    <td>${funcionario ? funcionario.nome : 'Desconhecido'}</td>
+                    <td>R$ ${(detalhes.valor_dia || 0).toFixed(2)}</td>
+                    <td>${detalhes.dias_presentes || 0} dias</td>
+                    <td><strong>R$ ${f.total.toFixed(2)}</strong></td>
+                    <td>
+                        <button class="btn btn-sm btn-info" onclick="verDetalhesFolhaFreelancer(${f.id})">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    } catch (error) {
+        console.error('Erro ao carregar folha:', error);
+    }
+}
+
+function verDetalhesFolhaFreelancer(id) {
+    alert('Funcionalidade de detalhes da folha de freelancer em desenvolvimento.');
+}
+
+// Função auxiliar para calcular número da semana
+function getWeekNumber(d) {
+    d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay()||7));
+    var yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
+    var weekNo = Math.ceil(( ( (d - yearStart) / 86400000) + 1)/7);
+    return weekNo;
+}
+
+// Função auxiliar para formatar data
+function formatarData(dataStr) {
+    if (!dataStr) return '';
+    const data = new Date(dataStr);
+    return data.toLocaleDateString('pt-BR');
+}
+
+// Carregar freelancers quando a página de freelancers for ativada
+document.addEventListener('DOMContentLoaded', function() {
+    // Adicionar listener para navegação
+    document.querySelectorAll('.nav-link').forEach(link => {
+        link.addEventListener('click', function(e) {
+            const page = this.getAttribute('data-page');
+            if (page === 'freelancers') {
+                setTimeout(() => {
+                    carregarFreelancers();
+                    carregarPresencasFreelancer();
+                }, 100);
+            }
+        });
+    });
+});
