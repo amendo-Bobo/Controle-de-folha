@@ -5,6 +5,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     setupNavigation();
     setupModals();
+    setupFormFuncionario();
     
     // Aguardar um pouco para garantir que os elementos estejam disponíveis
     setTimeout(() => {
