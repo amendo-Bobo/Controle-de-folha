@@ -1190,6 +1190,56 @@ app.get('/api/funcionarios', async (req, res) => {
     }
 });
 
+// GET funcionarios/todos (buscar todos funcionarios incluindo inativos - para debug)
+app.get('/api/funcionarios/todos', async (req, res) => {
+    console.log('=== GET /api/funcionarios/todos chamado ===');
+    console.log('useSupabase:', useSupabase);
+    
+    if (useSupabase) {
+        console.log('Buscando TODOS funcionários no PostgreSQL...');
+        const { Client } = require('pg');
+        
+        try {
+            const poolerUrl = databaseUrl.replace(
+                'postgresql://postgres:tiVW2cmpeVStByLm@db.yuwddqxdnyjvilbmjooc.supabase.co:5432/postgres',
+                'postgresql://postgres.yuwddqxdnyjvilbmjooc:tiVW2cmpeVStByLm@aws-1-sa-east-1.pooler.supabase.com:6543/postgres'
+            );
+            
+            const client = new Client({
+                connectionString: poolerUrl,
+                ssl: { rejectUnauthorized: false },
+                connectionTimeoutMillis: 10000,
+                query_timeout: 10000
+            });
+            
+            await client.connect();
+            
+            const result = await client.query('SELECT * FROM funcionarios ORDER BY created_at DESC');
+            
+            console.log('TODOS funcionários encontrados no PostgreSQL:', result.rows.length);
+            console.log('IDs:', result.rows.map(f => ({ id: f.id, nome: f.nome, tipo: f.tipo, ativo: f.ativo })));
+            
+            await client.end();
+            res.json(result.rows);
+        } catch (error) {
+            console.error('Erro ao buscar todos funcionários:', error);
+            res.status(500).json({ error: error.message });
+        }
+    } else {
+        console.log('Buscando TODOS funcionários no SQLite local...');
+        db.all('SELECT * FROM funcionarios', (err, rows) => {
+            if (err) {
+                console.error('Erro no SQLite:', err);
+                res.status(500).json({ error: err.message });
+                return;
+            }
+            console.log('TODOS funcionários encontrados no SQLite:', rows?.length || 0);
+            console.log('IDs:', rows?.map(f => ({ id: f.id, nome: f.nome, tipo: f.tipo, ativo: f.ativo })) || []);
+            res.json(rows);
+        });
+    }
+});
+
 // GET funcionarios/:id (buscar um funcionário específico)
 app.get('/api/funcionarios/:id', async (req, res) => {
     console.log('=== GET /api/funcionarios/:id chamado ===');
