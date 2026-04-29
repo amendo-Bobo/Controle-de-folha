@@ -3437,11 +3437,16 @@ async function excluirFolhaHistorico(mes, quinzena) {
 
 // Funções para Freelancers
 async function carregarFreelancers() {
+    console.log('=== CARREGANDO FREELANCERS ===');
     try {
         const response = await fetch(`${API_BASE}/api/funcionarios`);
         const funcionarios = await response.json();
         
+        console.log('Funcionários carregados:', funcionarios);
+        
         const freelancers = funcionarios.filter(f => f.tipo === 'freelancer');
+        
+        console.log('Freelancers filtrados:', freelancers);
         
         const tbody = document.getElementById('tabela-freelancers');
         
