@@ -200,7 +200,6 @@ function setupFormFuncionario() {
         const campoComissaoExtra = document.getElementById('campo-comissao-extra');
         const campoMeta = document.getElementById('campo-meta');
         const campoBonusMeta = document.getElementById('campo-bonus-meta');
-        const campoBonusMetaExtra = document.getElementById('campo-bonus-meta-extra');
         const campoSalario = document.getElementById('campo-salario');
         const campoComissaoProducao = document.getElementById('campo-comissao-producao');
         const campoQuinzena = document.getElementById('campo-quinzena');
@@ -212,7 +211,6 @@ function setupFormFuncionario() {
             campoComissaoExtra.style.display = 'block';
             campoMeta.style.display = 'block';
             campoBonusMeta.style.display = 'block';
-            campoBonusMetaExtra.style.display = 'block';
             campoSalario.style.display = 'none';
             campoComissaoProducao.style.display = 'none';
             campoQuinzena.style.display = 'none';
@@ -223,7 +221,6 @@ function setupFormFuncionario() {
             campoComissaoExtra.style.display = 'none';
             campoMeta.style.display = 'none';
             campoBonusMeta.style.display = 'none';
-            campoBonusMetaExtra.style.display = 'none';
             campoSalario.style.display = 'block';
             campoComissaoProducao.style.display = 'block';
             campoQuinzena.style.display = 'block';
@@ -234,7 +231,6 @@ function setupFormFuncionario() {
             campoComissaoExtra.style.display = 'none';
             campoMeta.style.display = 'none';
             campoBonusMeta.style.display = 'none';
-            campoBonusMetaExtra.style.display = 'none';
             campoSalario.style.display = 'none';
             campoComissaoProducao.style.display = 'none';
             campoQuinzena.style.display = 'none';
@@ -245,7 +241,6 @@ function setupFormFuncionario() {
             campoComissaoExtra.style.display = 'none';
             campoMeta.style.display = 'none';
             campoBonusMeta.style.display = 'none';
-            campoBonusMetaExtra.style.display = 'none';
             campoSalario.style.display = 'block';
             campoComissaoProducao.style.display = 'none';
             campoQuinzena.style.display = 'block';
