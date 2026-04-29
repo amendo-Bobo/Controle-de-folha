@@ -123,6 +123,23 @@ async function createSupabaseTables() {
                 console.log('Coluna valor_dia já existe ou erro ao adicionar:', error.message);
             }
             
+            // Atualizar CHECK constraint para incluir 'freelancer'
+            try {
+                // Remover constraint antiga se existir
+                await client.query(`ALTER TABLE funcionarios DROP CONSTRAINT IF EXISTS funcionarios_tipo_check`);
+                console.log('Constraint antiga removida (se existia)');
+                
+                // Adicionar nova constraint com 'freelancer'
+                await client.query(`
+                    ALTER TABLE funcionarios 
+                    ADD CONSTRAINT funcionarios_tipo_check 
+                    CHECK (tipo IN ('vendedora', 'producao', 'administrativo', 'freelancer'))
+                `);
+                console.log('Constraint atualizada com sucesso - agora inclui freelancer!');
+            } catch (error) {
+                console.log('Erro ao atualizar constraint (pode já existir):', error.message);
+            }
+            
             // Criar tabela presenca_freelancer
             await client.query(`
                 CREATE TABLE IF NOT EXISTS presenca_freelancer (
