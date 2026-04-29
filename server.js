@@ -240,6 +240,18 @@ async function createSupabaseTables() {
             `);
             console.log('Tabela folha_pagamento recriada com estrutura correta');
             
+            // Adicionar constraint única para ON CONFLICT
+            try {
+                await client.query(`
+                    ALTER TABLE folha_pagamento 
+                    ADD CONSTRAINT folha_pagamento_unique 
+                    UNIQUE (id_funcionario, mes_referencia, quinzena)
+                `);
+                console.log('Constraint única adicionada à folha_pagamento');
+            } catch (constraintError) {
+                console.log('Constraint já existe ou erro:', constraintError.message);
+            }
+            
             // Criar tabela vales se não existir
             try {
                 await client.query(`
