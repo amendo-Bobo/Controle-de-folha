@@ -3894,15 +3894,20 @@ app.delete('/api/presenca-freelancer/:id', async (req, res) => {
 app.post('/api/gerar-folha-freelancer-semanal', async (req, res) => {
     console.log('=== POST /api/gerar-folha-freelancer-semanal ===');
     console.log('Dados recebidos:', req.body);
+    console.log('useSupabase:', useSupabase);
     
     try {
         const { semana_referencia } = req.body;
         
         if (!semana_referencia) {
+            console.log('Erro: semana_referencia não informada');
             return res.status(400).json({ error: 'semana_referencia é obrigatório (formato: YYYY-WXX)' });
         }
         
+        console.log('Processando semana:', semana_referencia);
+        
         if (useSupabase) {
+            console.log('Usando PostgreSQL...');
             const { Client } = require('pg');
             const poolerUrl = databaseUrl.replace(
                 'postgresql://postgres:tiVW2cmpeVStByLm@db.yuwddqxdnyjvilbmjooc.supabase.co:5432/postgres',
@@ -3917,20 +3922,27 @@ app.post('/api/gerar-folha-freelancer-semanal', async (req, res) => {
             });
             
             await client.connect();
+            console.log('Conectado ao PostgreSQL');
             
             // Buscar freelancers ativos
+            console.log('Buscando freelancers ativos...');
             const freelancersResult = await client.query(
                 "SELECT id, nome, valor_dia FROM funcionarios WHERE tipo = 'freelancer' AND ativo = true"
             );
+            console.log('Freelancers encontrados:', freelancersResult.rows.length);
             
             const folhaGerada = [];
             
             for (const freelancer of freelancersResult.rows) {
+                console.log('Processando freelancer:', freelancer.id, freelancer.nome);
+                
                 // Buscar presenças do freelancer na semana
+                console.log('Buscando presenças para semana:', semana_referencia);
                 const presencasResult = await client.query(
                     "SELECT * FROM presenca_freelancer WHERE id_funcionario = $1 AND semana_referencia = $2",
                     [freelancer.id, semana_referencia]
                 );
+                console.log('Presenças encontradas:', presencasResult.rows.length);
                 
                 // Contar dias presentes
                 const diasPresentes = presencasResult.rows.filter(p => p.presente).length;
@@ -3940,27 +3952,37 @@ app.post('/api/gerar-folha-freelancer-semanal', async (req, res) => {
                 const total = diasPresentes * (freelancer.valor_dia || 0);
                 
                 // Inserir folha de pagamento
-                const result = await client.query(
-                    `INSERT INTO folha_pagamento 
-                     (id_funcionario, mes_referencia, quinzena, salario_base, comissoes, bonus, vales, total, detalhe_comissoes, data_geracao) 
-                     VALUES ($1, $2, 'semanal', $3, 0, 0, 0, $4, $5, CURRENT_DATE) 
-                     ON CONFLICT (id_funcionario, mes_referencia, quinzena) 
-                     DO UPDATE SET salario_base = $3, total = $4, detalhe_comissoes = $5 
-                     RETURNING *`,
-                    [
-                        freelancer.id,
-                        semana_referencia.split('-')[0] + '-' + semana_referencia.split('-')[1], // YYYY-MM
-                        freelancer.valor_dia || 0,
-                        total,
-                        JSON.stringify({ dias_presentes: diasPresentes, dias_total: diasTotal, valor_dia: freelancer.valor_dia })
-                    ]
-                );
+                console.log('Inserindo folha de pagamento...');
+                const mesReferencia = semana_referencia.split('-')[0] + '-' + semana_referencia.split('-')[1];
+                console.log('Mês referência:', mesReferencia);
+                
+                try {
+                    const result = await client.query(
+                        `INSERT INTO folha_pagamento 
+                         (id_funcionario, mes_referencia, quinzena, salario_base, comissoes, bonus, vales, total, detalhe_comissoes, data_geracao) 
+                         VALUES ($1, $2, 'semanal', $3, 0, 0, 0, $4, $5, CURRENT_DATE) 
+                         ON CONFLICT (id_funcionario, mes_referencia, quinzena) 
+                         DO UPDATE SET salario_base = $3, total = $4, detalhe_comissoes = $5 
+                         RETURNING *`,
+                        [
+                            freelancer.id,
+                            mesReferencia,
+                            freelancer.valor_dia || 0,
+                            total,
+                            JSON.stringify({ dias_presentes: diasPresentes, dias_total: diasTotal, valor_dia: freelancer.valor_dia })
+                        ]
+                    );
+                    console.log('Folha inserida/atualizada com sucesso');
+                } catch (insertError) {
+                    console.error('Erro ao inserir folha:', insertError.message);
+                    throw insertError;
+                }
                 
                 folhaGerada.push({
                     id_funcionario: freelancer.id,
                     nome_funcionario: freelancer.nome,
                     tipo: 'freelancer',
-                    mes_referencia: semana_referencia.split('-')[0] + '-' + semana_referencia.split('-')[1],
+                    mes_referencia: mesReferencia,
                     quinzena: 'semanal',
                     salario_base: freelancer.valor_dia || 0,
                     comissoes: 0,
