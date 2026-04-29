@@ -1152,7 +1152,7 @@ app.get('/api/funcionarios', async (req, res) => {
             const result = await client.query('SELECT * FROM funcionarios WHERE ativo = true ORDER BY created_at DESC');
             
             console.log('Funcionários encontrados no PostgreSQL:', result.rows.length);
-            console.log('Dados:', result.rows);
+            console.log('IDs dos funcionários:', result.rows.map(f => ({ id: f.id, nome: f.nome, tipo: f.tipo })));
             
             await client.end();
             
@@ -1169,6 +1169,7 @@ app.get('/api/funcionarios', async (req, res) => {
                 }
                 console.log('Funcionários encontrados no SQLite fallback:', rows?.length || 0);
                 console.log('Dados SQLite:', rows);
+                console.log('IDs dos funcionários SQLite:', rows?.map(f => ({ id: f.id, nome: f.nome, tipo: f.tipo })) || []);
                 res.json(rows);
             });
         }
@@ -1178,11 +1179,12 @@ app.get('/api/funcionarios', async (req, res) => {
         db.all('SELECT * FROM funcionarios WHERE ativo = 1', (err, rows) => {
             if (err) {
                 console.error('Erro no SQLite local:', err);
+                console.log('Erro no SQLite local detalhado:', err.stack);
                 res.status(500).json({ error: err.message });
                 return;
             }
             console.log('Funcionários encontrados no SQLite local:', rows?.length || 0);
-            console.log('Dados SQLite local:', rows);
+            console.log('IDs dos funcionários SQLite:', rows?.map(f => ({ id: f.id, nome: f.nome, tipo: f.tipo })) || []);
             res.json(rows);
         });
     }
