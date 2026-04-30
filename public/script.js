@@ -3701,14 +3701,13 @@ async function carregarFolhaFreelancerSemanal() {
     try {
         // Extrair mês e ano da semana (formato YYYY-WXX)
         const [ano, semana] = semanaReferencia.split('-');
-        const mesReferencia = `${ano}-${semana.split('W')[1]}`;
+        const weekNum = parseInt(semana.split('W')[1]);
+        // Calcular o mês aproximado baseado no número da semana
+        const mes = Math.ceil(weekNum / 4);
+        const mesReferencia = `${ano}-${mes.toString().padStart(2, '0')}`;
         
         const response = await fetch(`${API_BASE}/api/folha-pagamento?mes=${mesReferencia}&quinzena=semanal`);
         const folha = await response.json();
-        
-        // Buscar nomes dos funcionários
-        const funcionariosResponse = await fetch(`${API_BASE}/api/funcionarios`);
-        const funcionarios = await funcionariosResponse.json();
         
         const tbody = document.getElementById('tabela-folha-freelancer');
         
@@ -3727,12 +3726,12 @@ async function carregarFolhaFreelancerSemanal() {
         }
         
         tbody.innerHTML = folha.map(f => {
-            const funcionario = funcionarios.find(func => func.id === f.id_funcionario);
             const detalhes = f.detalhe_comissoes ? JSON.parse(f.detalhe_comissoes) : {};
+            const nomeFuncionario = f.nome_funcionario || 'Desconhecido';
             
             return `
                 <tr>
-                    <td>${funcionario ? funcionario.nome : 'Desconhecido'}</td>
+                    <td>${nomeFuncionario}</td>
                     <td>R$ ${(detalhes.valor_dia || 0).toFixed(2)}</td>
                     <td>${detalhes.dias_presentes || 0} dias</td>
                     <td><strong>R$ ${f.total.toFixed(2)}</strong></td>
@@ -3749,8 +3748,99 @@ async function carregarFolhaFreelancerSemanal() {
     }
 }
 
-function verDetalhesFolhaFreelancer(id) {
-    alert('Funcionalidade de detalhes da folha de freelancer em desenvolvimento.');
+async function verDetalhesFolhaFreelancer(id) {
+    try {
+        const response = await fetch(`${API_BASE}/api/folha-pagamento`);
+        const folhas = await response.json();
+        const folha = folhas.find(f => f.id === id);
+        
+        if (!folha) {
+            alert('Folha não encontrada!');
+            return;
+        }
+        
+        const detalhes = folha.detalhe_comissoes ? JSON.parse(folha.detalhe_comissoes) : {};
+        
+        const html = `
+            <div class="modal fade" id="modalDetalhesFolha" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Detalhes da Folha - ${folha.nome_funcionario || 'Desconhecido'}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <strong>Mês Referência:</strong>
+                                    <p>${folha.mes_referencia}</p>
+                                </div>
+                                <div class="col-6">
+                                    <strong>Quinzena:</strong>
+                                    <p>${folha.quinzena}</p>
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <strong>Valor por Dia:</strong>
+                                    <p>R$ ${(detalhes.valor_dia || 0).toFixed(2)}</p>
+                                </div>
+                                <div class="col-6">
+                                    <strong>Dias Presentes:</strong>
+                                    <p>${detalhes.dias_presentes || 0} dias</p>
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col-6">
+                                    <strong>Dias Totais:</strong>
+                                    <p>${detalhes.dias_total || 0} dias</p>
+                                </div>
+                                <div class="col-6">
+                                    <strong>Data Geração:</strong>
+                                    <p>${folha.data_geracao}</p>
+                                </div>
+                            </div>
+                            <hr>
+                            <div class="row">
+                                <div class="col-6">
+                                    <strong>Salário Base:</strong>
+                                    <p>R$ ${folha.salario_base.toFixed(2)}</p>
+                                </div>
+                                <div class="col-6">
+                                    <strong>Total:</strong>
+                                    <p class="text-success fs-5">R$ ${folha.total.toFixed(2)}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Remover modal anterior se existir
+        const modalAnterior = document.getElementById('modalDetalhesFolha');
+        if (modalAnterior) {
+            modalAnterior.remove();
+        }
+        
+        // Adicionar novo modal
+        document.body.insertAdjacentHTML('beforeend', html);
+        
+        // Mostrar modal
+        const modal = new bootstrap.Modal(document.getElementById('modalDetalhesFolha'));
+        modal.show();
+        
+        // Remover modal ao fechar
+        document.getElementById('modalDetalhesFolha').addEventListener('hidden.bs.modal', function() {
+            this.remove();
+        });
+    } catch (error) {
+        console.error('Erro ao carregar detalhes:', error);
+        alert('Erro ao carregar detalhes da folha!');
+    }
 }
 
 // Função auxiliar para calcular número da semana
